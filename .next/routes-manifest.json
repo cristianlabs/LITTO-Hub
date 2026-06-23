@@ -1,0 +1,174 @@
+{
+  "version": 3,
+  "pages404": true,
+  "appType": "app",
+  "caseSensitive": false,
+  "basePath": "",
+  "redirects": [
+    {
+      "source": "/:path+/",
+      "destination": "/:path+",
+      "internal": true,
+      "priority": true,
+      "statusCode": 308,
+      "regex": "^(?:/((?:[^/]+?)(?:/(?:[^/]+?))*))/$"
+    }
+  ],
+  "headers": [],
+  "onMatchHeaders": [],
+  "rewrites": {
+    "beforeFiles": [],
+    "afterFiles": [],
+    "fallback": []
+  },
+  "dynamicRoutes": [
+    {
+      "page": "/api/auth/[...nextauth]",
+      "regex": "^/api/auth/(.+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPnextauth": "nxtPnextauth"
+      },
+      "namedRegex": "^/api/auth/(?<nxtPnextauth>.+?)(?:/)?$"
+    }
+  ],
+  "staticRoutes": [
+    {
+      "page": "/",
+      "regex": "^/(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/(?:/)?$"
+    },
+    {
+      "page": "/_global-error",
+      "regex": "^/_global\\-error(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/_global\\-error(?:/)?$"
+    },
+    {
+      "page": "/_not-found",
+      "regex": "^/_not\\-found(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/_not\\-found(?:/)?$"
+    },
+    {
+      "page": "/api/crm/contatos",
+      "regex": "^/api/crm/contatos(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/crm/contatos(?:/)?$"
+    },
+    {
+      "page": "/api/estoque/produtos",
+      "regex": "^/api/estoque/produtos(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/estoque/produtos(?:/)?$"
+    },
+    {
+      "page": "/api/feedback",
+      "regex": "^/api/feedback(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/feedback(?:/)?$"
+    },
+    {
+      "page": "/api/notificacoes/unread-count",
+      "regex": "^/api/notificacoes/unread\\-count(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/notificacoes/unread\\-count(?:/)?$"
+    },
+    {
+      "page": "/api/usuarios",
+      "regex": "^/api/usuarios(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/usuarios(?:/)?$"
+    },
+    {
+      "page": "/chatbot",
+      "regex": "^/chatbot(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/chatbot(?:/)?$"
+    },
+    {
+      "page": "/comunicacao",
+      "regex": "^/comunicacao(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/comunicacao(?:/)?$"
+    },
+    {
+      "page": "/configuracoes",
+      "regex": "^/configuracoes(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/configuracoes(?:/)?$"
+    },
+    {
+      "page": "/crm",
+      "regex": "^/crm(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/crm(?:/)?$"
+    },
+    {
+      "page": "/crm/pipeline",
+      "regex": "^/crm/pipeline(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/crm/pipeline(?:/)?$"
+    },
+    {
+      "page": "/estoque",
+      "regex": "^/estoque(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/estoque(?:/)?$"
+    },
+    {
+      "page": "/favicon.ico",
+      "regex": "^/favicon\\.ico(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/favicon\\.ico(?:/)?$"
+    },
+    {
+      "page": "/feedback",
+      "regex": "^/feedback(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/feedback(?:/)?$"
+    },
+    {
+      "page": "/login",
+      "regex": "^/login(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/login(?:/)?$"
+    },
+    {
+      "page": "/nfe",
+      "regex": "^/nfe(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/nfe(?:/)?$"
+    },
+    {
+      "page": "/requisicoes",
+      "regex": "^/requisicoes(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/requisicoes(?:/)?$"
+    },
+    {
+      "page": "/treinamentos",
+      "regex": "^/treinamentos(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/treinamentos(?:/)?$"
+    }
+  ],
+  "dataRoutes": [],
+  "rsc": {
+    "header": "rsc",
+    "varyHeader": "rsc, next-router-state-tree, next-router-prefetch, next-router-segment-prefetch",
+    "prefetchHeader": "next-router-prefetch",
+    "didPostponeHeader": "x-nextjs-postponed",
+    "contentTypeHeader": "text/x-component",
+    "suffix": ".rsc",
+    "prefetchSegmentHeader": "next-router-segment-prefetch",
+    "prefetchSegmentSuffix": ".segment.rsc",
+    "prefetchSegmentDirSuffix": ".segments",
+    "clientParamParsing": false,
+    "dynamicRSCPrerender": false
+  },
+  "rewriteHeaders": {
+    "pathHeader": "x-nextjs-rewritten-path",
+    "queryHeader": "x-nextjs-rewritten-query"
+  }
+}
