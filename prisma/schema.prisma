@@ -1,0 +1,434 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum Role {
+  OWNER
+  HEAD_LEADER
+  MANAGER
+  SELLER
+  EMPLOYEE
+}
+
+enum ContactStatus {
+  LEAD
+  PROSPECT
+  ACTIVE
+  INACTIVE
+  LOST
+}
+
+enum DealStatus {
+  OPEN
+  WON
+  LOST
+  FROZEN
+}
+
+enum ActivityType {
+  NOTE
+  CALL
+  WHATSAPP
+  EMAIL
+  MEETING
+  TASK
+}
+
+enum MovementType {
+  IN
+  OUT
+  ADJUSTMENT
+  TRANSFER
+}
+
+enum StockAlertType {
+  MINIMUM
+  MAXIMUM
+  ZERO
+}
+
+enum NotificationType {
+  STOCK_MIN
+  STOCK_MAX
+  STOCK_ZERO
+  DEAL_UPDATE
+  TASK_DUE
+  REQUISITION_UPDATE
+  FEEDBACK_RECEIVED
+  SYSTEM
+}
+
+enum RequisitionCategory {
+  PURCHASE
+  SYSTEM_IMPROVEMENT
+  INFRASTRUCTURE
+}
+
+enum RequisitionStatus {
+  DRAFT
+  OPEN
+  IN_REVIEW
+  APPROVED
+  REJECTED
+  DONE
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum LmsCategory {
+  PRODUCT_MANUAL
+  SALES_TRAINING
+  COMPANY_RULES
+  OTHER
+}
+
+// ─── Auth ─────────────────────────────────────────────────────────────────────
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  password      String?
+  role          Role      @default(EMPLOYEE)
+  active        Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts            Account[]
+  sessions            Session[]
+  auditLogs           AuditLog[]
+  activities          Activity[]
+  notifications       Notification[]
+  stockAlertConfig    StockAlertConfig?
+  requisitions        Requisition[]
+  requisitionComments RequisitionComment[]
+  learningProgress    LearningProgress[]
+  sentFeedbacks       Feedback[]           @relation("SentFeedbacks")
+  receivedFeedbacks   Feedback[]           @relation("ReceivedFeedbacks")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String
+  action     String
+  resource   String
+  resourceId String?
+  metadata   Json?
+  ip         String?
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+// ─── CRM ──────────────────────────────────────────────────────────────────────
+
+model Company {
+  id      String  @id @default(cuid())
+  name    String
+  cnpj    String? @unique
+  email   String?
+  phone   String?
+  city    String?
+  state   String?
+  website String?
+
+  contacts Contact[]
+}
+
+model Contact {
+  id           String        @id @default(cuid())
+  name         String
+  email        String?
+  phone        String?
+  whatsapp     String?
+  cpf          String?
+  status       ContactStatus @default(LEAD)
+  tags         String[]
+  notes        String?
+  companyId    String?
+  customFields Json?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  company    Company?   @relation(fields: [companyId], references: [id])
+  deals      Deal[]
+  activities Activity[]
+}
+
+model Pipeline {
+  id    String @id @default(cuid())
+  name  String
+  order Int    @default(0)
+  color String @default("#3b82f6")
+
+  deals Deal[]
+}
+
+model Deal {
+  id            String     @id @default(cuid())
+  title         String
+  value         Decimal?
+  status        DealStatus @default(OPEN)
+  pipelineId    String
+  contactId     String?
+  expectedClose DateTime?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  pipeline   Pipeline   @relation(fields: [pipelineId], references: [id])
+  contact    Contact?   @relation(fields: [contactId], references: [id])
+  activities Activity[]
+}
+
+model Activity {
+  id        String       @id @default(cuid())
+  type      ActivityType
+  title     String
+  content   String?
+  contactId String?
+  dealId    String?
+  userId    String
+  dueDate   DateTime?
+  completed Boolean      @default(false)
+  createdAt DateTime     @default(now())
+
+  contact Contact? @relation(fields: [contactId], references: [id])
+  deal    Deal?    @relation(fields: [dealId], references: [id])
+  user    User     @relation(fields: [userId], references: [id])
+}
+
+// ─── Estoque ──────────────────────────────────────────────────────────────────
+
+model Supplier {
+  id      String  @id @default(cuid())
+  name    String
+  cnpj    String?
+  email   String?
+  phone   String?
+  contact String?
+
+  products Product[]
+}
+
+model ProductCategory {
+  id    String @id @default(cuid())
+  name  String
+  color String @default("#6b7280")
+
+  products Product[]
+}
+
+model Product {
+  id           String   @id @default(cuid())
+  sku          String   @unique
+  name         String
+  description  String?
+  barcode      String?
+  categoryId   String?
+  supplierId   String?
+  costPrice    Decimal  @default(0)
+  salePrice    Decimal  @default(0)
+  unit         String   @default("un")
+  currentStock Int      @default(0)
+  minStock     Int      @default(0)
+  maxStock     Int      @default(100)
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  category  ProductCategory? @relation(fields: [categoryId], references: [id])
+  supplier  Supplier?        @relation(fields: [supplierId], references: [id])
+  movements StockMovement[]
+  alerts    StockAlert[]
+}
+
+model StockMovement {
+  id        String       @id @default(cuid())
+  productId String
+  type      MovementType
+  quantity  Int
+  reason    String?
+  reference String?
+  cost      Decimal?
+  createdAt DateTime     @default(now())
+
+  product Product @relation(fields: [productId], references: [id])
+}
+
+model StockAlert {
+  id        String         @id @default(cuid())
+  productId String
+  type      StockAlertType
+  value     Int
+  triggered Boolean        @default(true)
+  sentAt    DateTime?
+  createdAt DateTime       @default(now())
+
+  product Product @relation(fields: [productId], references: [id])
+}
+
+model StockAlertConfig {
+  id     String  @id @default(cuid())
+  userId String  @unique
+  email  Boolean @default(true)
+  push   Boolean @default(true)
+  inApp  Boolean @default(true)
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+// ─── Notificações ─────────────────────────────────────────────────────────────
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  type      NotificationType
+  title     String
+  message   String
+  read      Boolean          @default(false)
+  link      String?
+  metadata  Json?
+  createdAt DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+// ─── Requisições ──────────────────────────────────────────────────────────────
+
+model Requisition {
+  id          String              @id @default(cuid())
+  title       String
+  description String?
+  category    RequisitionCategory
+  status      RequisitionStatus   @default(DRAFT)
+  priority    Priority            @default(MEDIUM)
+  userId      String
+  votes       Int                 @default(0)
+  attachments String[]
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  user     User                 @relation(fields: [userId], references: [id])
+  comments RequisitionComment[]
+}
+
+model RequisitionComment {
+  id            String   @id @default(cuid())
+  requisitionId String
+  userId        String
+  content       String
+  createdAt     DateTime @default(now())
+
+  requisition Requisition @relation(fields: [requisitionId], references: [id])
+  user        User        @relation(fields: [userId], references: [id])
+}
+
+// ─── Feedback ─────────────────────────────────────────────────────────────────
+
+model Feedback {
+  id              String   @id @default(cuid())
+  senderId        String?
+  receiverId      String
+  content         String
+  senderEncrypted String
+  anonymous       Boolean  @default(true)
+  read            Boolean  @default(false)
+  createdAt       DateTime @default(now())
+
+  sender   User? @relation("SentFeedbacks", fields: [senderId], references: [id])
+  receiver User  @relation("ReceivedFeedbacks", fields: [receiverId], references: [id])
+}
+
+// ─── LMS ──────────────────────────────────────────────────────────────────────
+
+model Course {
+  id          String      @id @default(cuid())
+  title       String
+  description String?
+  category    LmsCategory
+  thumbnail   String?
+  published   Boolean     @default(false)
+  order       Int         @default(0)
+  createdAt   DateTime    @default(now())
+
+  lessons  Lesson[]
+  progress LearningProgress[]
+}
+
+model Lesson {
+  id       String  @id @default(cuid())
+  courseId String
+  title    String
+  content  String?
+  videoUrl String?
+  fileUrl  String?
+  order    Int     @default(0)
+  duration Int?
+
+  course   Course             @relation(fields: [courseId], references: [id])
+  progress LearningProgress[]
+}
+
+model LearningProgress {
+  id          String    @id @default(cuid())
+  userId      String
+  courseId    String
+  lessonId    String?
+  completed   Boolean   @default(false)
+  completedAt DateTime?
+
+  user   User    @relation(fields: [userId], references: [id])
+  course Course  @relation(fields: [courseId], references: [id])
+  lesson Lesson? @relation(fields: [lessonId], references: [id])
+
+  @@unique([userId, courseId, lessonId])
+}
