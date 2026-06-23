@@ -2,5 +2,4 @@ node_modules
 .next
 CLAUDE.md
 AGENTS.md
-package-lock.json
-package.json
+
