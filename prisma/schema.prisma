@@ -93,6 +93,24 @@ enum LmsCategory {
   OTHER
 }
 
+enum MessageDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum MessageStatus {
+  SENT
+  DELIVERED
+  READ
+  FAILED
+}
+
+enum ConversationStatus {
+  OPEN
+  RESOLVED
+  WAITING
+}
+
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
 model User {
@@ -118,6 +136,8 @@ model User {
   learningProgress    LearningProgress[]
   sentFeedbacks       Feedback[]           @relation("SentFeedbacks")
   receivedFeedbacks   Feedback[]           @relation("ReceivedFeedbacks")
+  assignedConversations Conversation[]
+  sentMessages        Message[]
 }
 
 model Account {
@@ -199,9 +219,10 @@ model Contact {
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
 
-  company    Company?   @relation(fields: [companyId], references: [id])
+  company    Company?     @relation(fields: [companyId], references: [id])
   deals      Deal[]
   activities Activity[]
+  conversations Conversation[]
 }
 
 model Pipeline {
@@ -431,4 +452,56 @@ model LearningProgress {
   lesson Lesson? @relation(fields: [lessonId], references: [id])
 
   @@unique([userId, courseId, lessonId])
+}
+
+// ─── WhatsApp / Comunicação ───────────────────────────────────────────────────
+
+model WhatsAppInstance {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  phone       String?
+  connected   Boolean  @default(false)
+  qrCode      String?  @db.Text
+  webhookUrl  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  conversations Conversation[]
+}
+
+model Conversation {
+  id          String             @id @default(cuid())
+  instanceId  String
+  remoteJid   String
+  contactId   String?
+  assignedTo  String?
+  status      ConversationStatus @default(OPEN)
+  unreadCount Int                @default(0)
+  lastMessage String?
+  lastMessageAt DateTime?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  instance  WhatsAppInstance @relation(fields: [instanceId], references: [id])
+  contact   Contact?         @relation(fields: [contactId], references: [id])
+  assignee  User?            @relation(fields: [assignedTo], references: [id])
+  messages  Message[]
+
+  @@unique([instanceId, remoteJid])
+}
+
+model Message {
+  id             String           @id @default(cuid())
+  conversationId String
+  remoteMessageId String?        @unique
+  direction      MessageDirection
+  body           String           @db.Text
+  type           String           @default("text")
+  mediaUrl       String?
+  status         MessageStatus    @default(SENT)
+  sentBy         String?
+  createdAt      DateTime         @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id])
+  sender       User?        @relation(fields: [sentBy], references: [id])
 }
