@@ -432,3 +432,4 @@ model LearningProgress {
 
   @@unique([userId, courseId, lessonId])
 }
+Datasource "db": PostgreSQL database "sistema_empresarial", schema "public" at "localhost:5432"
