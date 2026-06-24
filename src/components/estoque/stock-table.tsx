@@ -4,12 +4,13 @@ import { useState, useTransition, useCallback } from "react"
 import { useRouter, useSearchParams, usePathname } from "next/navigation"
 import { ProductFormSheet } from "./product-form-sheet"
 import { MovementDialog } from "./movement-dialog"
+import { ImportDialog } from "./import-dialog"
 import { formatCurrency } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
   AlertTriangle, XCircle, TrendingDown, CheckCircle2,
-  ArrowDown, ArrowUp, Pencil, Trash2, Search, Plus, History,
+  ArrowDown, ArrowUp, Pencil, Trash2, Search, Plus, History, FileSpreadsheet,
 } from "lucide-react"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 
@@ -51,6 +52,7 @@ export function StockTable({ products, categories, suppliers, currentFilter, cur
   const [moveType, setMoveType] = useState<"IN" | "OUT" | "ADJUSTMENT">("IN")
   const [deleteId, setDeleteId] = useState<string | undefined>()
   const [search, setSearch] = useState(currentQ)
+  const [importOpen, setImportOpen] = useState(false)
 
   function applyFilter(filter: string, q = search) {
     const params = new URLSearchParams()
@@ -96,9 +98,14 @@ export function StockTable({ products, categories, suppliers, currentFilter, cur
             </button>
           ))}
         </div>
-        <Button size="sm" onClick={() => { setEditProduct(undefined); setFormOpen(true) }}>
-          <Plus className="w-4 h-4 mr-1.5" /> Novo Produto
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" onClick={() => setImportOpen(true)}>
+            <FileSpreadsheet className="w-4 h-4 mr-1.5" /> Importar planilha
+          </Button>
+          <Button size="sm" onClick={() => { setEditProduct(undefined); setFormOpen(true) }}>
+            <Plus className="w-4 h-4 mr-1.5" /> Novo Produto
+          </Button>
+        </div>
       </div>
 
       {/* Table */}
@@ -170,6 +177,8 @@ export function StockTable({ products, categories, suppliers, currentFilter, cur
           </tbody>
         </table>
       </div>
+
+      <ImportDialog open={importOpen} onOpenChange={setImportOpen} onSuccess={refresh} />
 
       <ProductFormSheet open={formOpen} onOpenChange={setFormOpen} product={editProduct}
         categories={categories} suppliers={suppliers} onSaved={refresh} />
