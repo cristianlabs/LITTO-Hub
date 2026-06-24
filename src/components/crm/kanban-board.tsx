@@ -18,8 +18,8 @@ interface Contact {
 interface Deal {
   id: string
   title: string
-  value?: { toString(): string } | null
-  expectedClose?: Date | null
+  value?: number | null
+  expectedClose?: string | Date | null
   contact?: Contact | null
   pipelineId: string
 }
@@ -83,7 +83,7 @@ function DealCard({
       <div className="flex items-center justify-between">
         {deal.value ? (
           <span className="text-xs font-semibold text-green-700 bg-green-50 px-2 py-0.5 rounded-full">
-            {formatCurrency(deal.value.toString())}
+            {formatCurrency(deal.value)}
           </span>
         ) : (
           <span />
@@ -193,7 +193,7 @@ export function KanbanBoard({ pipelines: initial, contacts }: Props) {
 
   const totalValue = pipelines
     .flatMap((p) => p.deals)
-    .reduce((sum, d) => sum + (d.value ? parseFloat(d.value.toString()) : 0), 0)
+    .reduce((sum, d) => sum + (d.value ?? 0), 0)
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
@@ -239,7 +239,7 @@ export function KanbanBoard({ pipelines: initial, contacts }: Props) {
                 <div className="px-4 py-1.5 text-xs text-gray-400 border-b border-gray-100">
                   {formatCurrency(
                     pipeline.deals.reduce(
-                      (sum, d) => sum + (d.value ? parseFloat(d.value.toString()) : 0),
+                      (sum, d) => sum + (d.value ?? 0),
                       0,
                     ),
                   )}

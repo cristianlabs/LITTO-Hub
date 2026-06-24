@@ -33,6 +33,8 @@ interface Contact {
   phone?: string | null
   whatsapp?: string | null
   cpf?: string | null
+  cnpj?: string | null
+  razaoSocial?: string | null
   status: ContactStatus
   notes?: string | null
   createdAt: Date

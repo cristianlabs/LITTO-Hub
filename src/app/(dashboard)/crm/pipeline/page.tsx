@@ -25,10 +25,21 @@ export default async function PipelinePage() {
     }),
   ])
 
+  const serializedPipelines = pipelines.map((p) => ({
+    ...p,
+    deals: p.deals.map((d) => ({
+      ...d,
+      value: Number(d.value),
+      expectedClose: d.expectedClose?.toISOString() ?? null,
+      createdAt: d.createdAt.toISOString(),
+      updatedAt: d.updatedAt.toISOString(),
+    })),
+  }))
+
   return (
     <div className="flex flex-col h-full">
       <Header title="Pipeline" subtitle="Negócios por etapa do funil" />
-      <KanbanBoard pipelines={pipelines} contacts={contacts} />
+      <KanbanBoard pipelines={serializedPipelines} contacts={contacts} />
     </div>
   )
 }

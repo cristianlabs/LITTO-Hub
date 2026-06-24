@@ -2,7 +2,7 @@ import { auth } from "@/lib/auth"
 import { db } from "@/lib/db"
 import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
-import { createInstance, getInstanceStatus, deleteInstance, getInstanceQR } from "@/lib/evolution"
+import { createInstance, getInstanceStatus, deleteInstance, getInstanceQR, setWebhook } from "@/lib/evolution"
 
 const createSchema = z.object({ name: z.string().min(1) })
 
@@ -22,7 +22,8 @@ export async function POST(req: NextRequest) {
   const parsed = createSchema.safeParse(body)
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
 
-  const webhookUrl = `${process.env.NEXTAUTH_URL}/api/webhooks/evolution`
+  const webhookBase = process.env.WEBHOOK_BASE_URL ?? process.env.NEXTAUTH_URL
+  const webhookUrl = `${webhookBase}/api/webhooks/evolution`
 
   // Create in Evolution API
   let evolutionData: Record<string, unknown> = {}
@@ -30,7 +31,7 @@ export async function POST(req: NextRequest) {
     evolutionData = await createInstance(parsed.data.name, webhookUrl)
   } catch (err) {
     console.error("[instancias POST] Evolution API error:", err)
-    // Continue — save locally even if Evolution is offline (dev mode)
+    return NextResponse.json({ error: "Não foi possível criar a instância na Evolution API. Verifique se ela está rodando." }, { status: 502 })
   }
 
   const instance = await db.whatsAppInstance.create({
@@ -80,7 +81,21 @@ export async function PATCH(req: NextRequest) {
       }
       return NextResponse.json({ qrCode })
     } catch (err) {
+      console.error("[PATCH qr] erro:", err)
       return NextResponse.json({ error: "Evolution API indisponível" }, { status: 503 })
+    }
+  }
+
+  if (action === "webhook") {
+    const webhookBase = process.env.WEBHOOK_BASE_URL ?? process.env.NEXTAUTH_URL
+    const webhookUrl = `${webhookBase}/api/webhooks/evolution`
+    try {
+      await setWebhook(instance.name, webhookUrl)
+      await db.whatsAppInstance.update({ where: { id }, data: { webhookUrl } })
+      return NextResponse.json({ ok: true, webhookUrl })
+    } catch (err) {
+      console.error("[PATCH webhook]", err)
+      return NextResponse.json({ error: "Não foi possível registrar o webhook" }, { status: 503 })
     }
   }
 

@@ -1,11 +1,12 @@
 "use client"
 
-import { useState, useCallback, useTransition } from "react"
+import { useState, useCallback, useTransition, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { ConversationList } from "./conversation-list"
 import { ChatWindow } from "./chat-window"
 import { InstanceSetup } from "./instance-setup"
-import { MessageCircle, Settings, Filter } from "lucide-react"
+import { NovaConversaModal } from "./nova-conversa-modal"
+import { MessageCircle, Settings, Plus } from "lucide-react"
 
 interface Instance {
   id: string
@@ -43,8 +44,10 @@ export function ComunicacaoClient({ initialInstances, initialConversations }: Pr
   const [selectedId, setSelectedId] = useState<string | undefined>()
   const [tab, setTab] = useState<Tab>("chat")
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("")
+  const [showNovaConversa, setShowNovaConversa] = useState(false)
 
   const selectedConversation = conversations.find((c) => c.id === selectedId)
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   async function refreshConversations() {
     const url = statusFilter ? `/api/comunicacao/conversas?status=${statusFilter}` : "/api/comunicacao/conversas"
@@ -54,6 +57,13 @@ export function ComunicacaoClient({ initialInstances, initialConversations }: Pr
       setConversations(data)
     }
   }
+
+  // Poll conversation list every 5s to pick up new inbound messages
+  useEffect(() => {
+    intervalRef.current = setInterval(refreshConversations, 5000)
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current) }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [statusFilter])
 
   async function refreshInstances() {
     const res = await fetch("/api/comunicacao/instancias")
@@ -73,24 +83,44 @@ export function ComunicacaoClient({ initialInstances, initialConversations }: Pr
     statusFilter ? c.status === statusFilter : true,
   )
 
+  function serializeDate(d: Date | string | null | undefined): string | null {
+    if (!d) return null
+    if (typeof d === "string") return d
+    return d.toISOString()
+  }
+
   const serializedConversations = filteredConversations.map((c) => ({
     ...c,
-    lastMessageAt: c.lastMessageAt ? c.lastMessageAt.toISOString() : null,
+    lastMessageAt: serializeDate(c.lastMessageAt),
   }))
 
   const serializedSelected = selectedConversation
-    ? { ...selectedConversation, lastMessageAt: selectedConversation.lastMessageAt?.toISOString() ?? null }
+    ? { ...selectedConversation, lastMessageAt: serializeDate(selectedConversation.lastMessageAt) }
     : null
 
   const totalUnread = conversations.reduce((sum, c) => sum + c.unreadCount, 0)
   const noInstances = instances.length === 0
 
+  async function handleNovaConversaSuccess(conversationId: string) {
+    setShowNovaConversa(false)
+    await refreshConversations()
+    setSelectedId(conversationId)
+    setTab("chat")
+  }
+
   return (
     <div className="flex-1 flex overflow-hidden">
+      {showNovaConversa && (
+        <NovaConversaModal
+          instances={instances}
+          onClose={() => setShowNovaConversa(false)}
+          onSuccess={handleNovaConversaSuccess}
+        />
+      )}
       {/* Left sidebar */}
       <div className="w-80 flex flex-col border-r border-gray-200 bg-white">
         {/* Tabs */}
-        <div className="flex border-b border-gray-200">
+        <div className="flex border-b border-gray-200 items-center">
           <button
             onClick={() => setTab("chat")}
             className={`flex-1 flex items-center justify-center gap-1.5 py-3 text-sm font-medium transition-colors ${
@@ -117,6 +147,13 @@ export function ComunicacaoClient({ initialInstances, initialConversations }: Pr
           >
             <Settings className="w-4 h-4" />
             Instâncias
+          </button>
+          <button
+            onClick={() => setShowNovaConversa(true)}
+            className="px-3 py-3 text-gray-500 hover:text-green-600 transition-colors"
+            title="Nova conversa"
+          >
+            <Plus className="w-4 h-4" />
           </button>
         </div>
 

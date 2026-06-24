@@ -6,6 +6,9 @@ import { signOut, useSession } from "next-auth/react"
 import {
   LayoutDashboard,
   Users,
+  Building2,
+  TrendingUp,
+  UserCog,
   Package,
   MessageCircle,
   Bot,
@@ -23,6 +26,9 @@ import type { Role } from "@prisma/client"
 const navItems = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/crm", label: "CRM", icon: Users },
+  { href: "/clientes", label: "Clientes", icon: Building2 },
+  { href: "/vendas", label: "Vendas", icon: TrendingUp },
+  { href: "/colaboradores", label: "Colaboradores", icon: UserCog },
   { href: "/estoque", label: "Estoque", icon: Package },
   { href: "/comunicacao", label: "Comunicação", icon: MessageCircle },
   { href: "/chatbot", label: "Chatbot", icon: Bot },

@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState, useCallback } from "react"
-import { Send, Check, CheckCheck, Clock, UserCircle, ExternalLink } from "lucide-react"
+import { Send, Check, CheckCheck, UserCircle, ExternalLink } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { getInitials, timeAgo } from "@/lib/utils"
@@ -30,7 +30,7 @@ interface Props {
 }
 
 const STATUS_ICON = {
-  SENT: <Clock className="w-3 h-3 text-gray-400" />,
+  SENT: <Check className="w-3 h-3 text-gray-400" />,
   DELIVERED: <CheckCheck className="w-3 h-3 text-gray-400" />,
   READ: <CheckCheck className="w-3 h-3 text-blue-400" />,
   FAILED: <span className="text-red-400 text-xs">!</span>,

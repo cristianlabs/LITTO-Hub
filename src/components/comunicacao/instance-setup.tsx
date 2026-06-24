@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { QrCode, Wifi, WifiOff, Trash2, RefreshCw, Plus } from "lucide-react"
+import { QrCode, Wifi, WifiOff, Trash2, RefreshCw, Plus, Webhook } from "lucide-react"
 
 interface Instance {
   id: string
@@ -77,6 +77,25 @@ export function InstanceSetup({ instances, onRefresh }: Props) {
         body: JSON.stringify({ id, action: "status" }),
       })
       onRefresh()
+    } finally {
+      setLoading(null)
+    }
+  }
+
+  async function handleWebhook(id: string) {
+    setLoading(id + "-webhook")
+    try {
+      const res = await fetch("/api/comunicacao/instancias", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, action: "webhook" }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        alert(`Webhook registrado com sucesso!\n${data.webhookUrl}`)
+      } else {
+        alert(data.error ?? "Erro ao registrar webhook")
+      }
     } finally {
       setLoading(null)
     }
@@ -151,34 +170,40 @@ export function InstanceSetup({ instances, onRefresh }: Props) {
                 </div>
               </div>
 
-              <div className="flex items-center gap-1.5">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-8 text-xs"
-                  disabled={loading === inst.id}
+              <div className="flex items-center gap-0.5">
+                <button
+                  title="Verificar status"
+                  disabled={!!loading}
                   onClick={() => handleStatus(inst.id)}
+                  className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-40"
                 >
-                  <RefreshCw className={`w-3.5 h-3.5 mr-1 ${loading === inst.id ? "animate-spin" : ""}`} />
-                  Status
-                </Button>
+                  <RefreshCw className={`w-4 h-4 ${loading === inst.id ? "animate-spin" : ""}`} />
+                </button>
+                <button
+                  title="Registrar webhook (use se mensagens recebidas não aparecem)"
+                  disabled={!!loading}
+                  onClick={() => handleWebhook(inst.id)}
+                  className="p-2 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors disabled:opacity-40"
+                >
+                  <Webhook className={`w-4 h-4 ${loading === inst.id + "-webhook" ? "animate-pulse" : ""}`} />
+                </button>
                 {!inst.connected && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-8 text-xs"
+                  <button
+                    title="Ver QR Code"
                     disabled={loading === inst.id}
                     onClick={() => handleQR(inst)}
+                    className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors disabled:opacity-40"
                   >
-                    <QrCode className="w-3.5 h-3.5 mr-1" /> QR Code
-                  </Button>
+                    <QrCode className="w-4 h-4" />
+                  </button>
                 )}
                 <button
-                  onClick={() => handleDelete(inst.id, inst.name)}
+                  title="Excluir instância"
                   disabled={loading === inst.id}
-                  className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                  onClick={() => handleDelete(inst.id, inst.name)}
+                  className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-40"
                 >
-                  <Trash2 className="w-3.5 h-3.5" />
+                  <Trash2 className="w-4 h-4" />
                 </button>
               </div>
             </div>

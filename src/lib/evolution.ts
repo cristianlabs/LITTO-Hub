@@ -19,18 +19,33 @@ export async function evolutionFetch(path: string, options?: RequestInit) {
 }
 
 export async function createInstance(name: string, webhookUrl: string) {
-  return evolutionFetch("/instance/create", {
+  const result = await evolutionFetch("/instance/create", {
     method: "POST",
     body: JSON.stringify({
       instanceName: name,
       qrcode: true,
       integration: "WHATSAPP-BAILEYS",
-      webhook: {
-        url: webhookUrl,
-        byEvents: false,
-        base64: false,
-        events: ["MESSAGES_UPSERT", "CONNECTION_UPDATE", "MESSAGES_UPDATE"],
-      },
+      // v1 flat style
+      webhook: webhookUrl,
+      webhookByEvents: false,
+      webhookBase64: false,
+      events: ["MESSAGES_UPSERT", "CONNECTION_UPDATE", "MESSAGES_UPDATE"],
+    }),
+  })
+  // Also set via v2 endpoint (no-op on v1, required on v2)
+  await setWebhook(name, webhookUrl).catch(() => null)
+  return result
+}
+
+export async function setWebhook(instanceName: string, webhookUrl: string) {
+  return evolutionFetch(`/webhook/set/${instanceName}`, {
+    method: "POST",
+    body: JSON.stringify({
+      url: webhookUrl,
+      enabled: true,
+      webhookByEvents: false,
+      webhookBase64: false,
+      events: ["MESSAGES_UPSERT", "CONNECTION_UPDATE", "MESSAGES_UPDATE"],
     }),
   })
 }
@@ -48,7 +63,7 @@ export async function sendTextMessage(instance: string, to: string, text: string
     method: "POST",
     body: JSON.stringify({
       number: to,
-      text,
+      textMessage: { text },
     }),
   })
 }

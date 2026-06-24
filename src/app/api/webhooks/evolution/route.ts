@@ -2,12 +2,24 @@ import { db } from "@/lib/db"
 import { NextRequest, NextResponse } from "next/server"
 import { normalizeJid } from "@/lib/evolution"
 
-// Evolution API sends webhook events here
+// Webhook verification (GET) — some validators ping this
+export async function GET() {
+  return NextResponse.json({ ok: true, webhook: "evolution" })
+}
+
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null)
   if (!body) return NextResponse.json({ ok: true })
 
-  const { event, instance: instanceName, data } = body
+  // Evolution API v1/v2 sends events in different casings
+  // Accept both: "messages.upsert" and "MESSAGES_UPSERT"
+  const rawEvent: string = body.event ?? body.type ?? ""
+  const event = rawEvent.toLowerCase().replace(/_/g, ".")
+
+  const instanceName: string = body.instance ?? body.instanceName ?? body.sender ?? ""
+  const data = body.data ?? body.messages ?? body
+
+  console.log(`[webhook] ${new Date().toISOString()} event="${rawEvent}" instance="${instanceName}"`)
 
   try {
     if (event === "messages.upsert") {
@@ -16,35 +28,65 @@ export async function POST(req: NextRequest) {
       await handleConnectionUpdate(instanceName, data)
     } else if (event === "messages.update") {
       await handleMessageUpdate(data)
+    } else {
+      console.log("[webhook] unhandled event:", rawEvent)
     }
   } catch (err) {
-    console.error("[webhook/evolution]", err)
+    console.error("[webhook/evolution] event:", rawEvent, "instance:", instanceName, err)
   }
 
   return NextResponse.json({ ok: true })
 }
 
-async function handleMessageUpsert(instanceName: string, data: Record<string, unknown>) {
-  const msgs = Array.isArray(data) ? data : [data]
+async function handleMessageUpsert(instanceName: string, data: unknown) {
+  // Normalize: data can be an array, a single object, or { messages: [...] }
+  let msgs: Record<string, unknown>[]
+  if (Array.isArray(data)) {
+    msgs = data
+  } else if (data && typeof data === "object") {
+    const d = data as Record<string, unknown>
+    // Some Evolution versions nest messages inside data.messages
+    if (Array.isArray(d.messages)) {
+      msgs = d.messages as Record<string, unknown>[]
+    } else {
+      msgs = [d]
+    }
+  } else {
+    return
+  }
 
   const instance = await db.whatsAppInstance.findUnique({ where: { name: instanceName } })
-  if (!instance) return
+  if (!instance) {
+    console.warn("[webhook] Instance not found:", instanceName)
+    return
+  }
 
   for (const msg of msgs) {
-    const key = msg.key as Record<string, unknown>
-    if (!key) continue
+    const key = (msg.key ?? msg) as Record<string, unknown>
 
-    const remoteJid = key.remoteJid as string
-    if (!remoteJid || remoteJid.includes("status@broadcast")) continue
+    const remoteJid =
+      (key.remoteJid as string) ??
+      (msg.remoteJid as string) ??
+      ""
 
-    const isFromMe = key.fromMe as boolean
-    const messageId = key.id as string
-    const msgContent = msg.message as Record<string, unknown>
-    const body =
-      (msgContent?.conversation as string) ||
-      (msgContent?.extendedTextMessage as Record<string, unknown>)?.text as string ||
-      (msgContent?.imageMessage as Record<string, unknown>)?.caption as string ||
+    if (!remoteJid || remoteJid.includes("status@broadcast") || remoteJid.includes("broadcast")) continue
+
+    const isFromMe = Boolean(key.fromMe ?? msg.fromMe ?? false)
+    const messageId = (key.id as string) ?? (msg.id as string) ?? null
+
+    // Extract message body from multiple possible locations
+    const msgContent = (msg.message ?? msg.body ?? {}) as Record<string, unknown>
+    const body: string =
+      (msg.body as string) ||
+      (msgContent.conversation as string) ||
+      ((msgContent.extendedTextMessage as Record<string, unknown>)?.text as string) ||
+      ((msgContent.imageMessage as Record<string, unknown>)?.caption as string) ||
+      ((msgContent.videoMessage as Record<string, unknown>)?.caption as string) ||
+      ((msgContent.documentMessage as Record<string, unknown>)?.title as string) ||
+      ((msgContent.audioMessage as Record<string, unknown>) ? "[áudio]" : "") ||
       "[mídia]"
+
+    if (!body) continue
 
     // Find or create conversation
     let conversation = await db.conversation.findUnique({
@@ -52,7 +94,6 @@ async function handleMessageUpsert(instanceName: string, data: Record<string, un
     })
 
     if (!conversation) {
-      // Try to match a contact by phone
       const phone = normalizeJid(remoteJid)
       const contact = await db.contact.findFirst({
         where: {
@@ -84,28 +125,28 @@ async function handleMessageUpsert(instanceName: string, data: Record<string, un
       })
     }
 
-    // Avoid duplicate messages
-    const existing = messageId
-      ? await db.message.findUnique({ where: { remoteMessageId: messageId } })
-      : null
-
-    if (!existing) {
-      await db.message.create({
-        data: {
-          conversationId: conversation.id,
-          remoteMessageId: messageId ?? null,
-          direction: isFromMe ? "OUTBOUND" : "INBOUND",
-          body,
-          status: isFromMe ? "SENT" : "DELIVERED",
-        },
-      })
+    // Dedup by remoteMessageId
+    if (messageId) {
+      const existing = await db.message.findUnique({ where: { remoteMessageId: messageId } })
+      if (existing) continue
     }
+
+    await db.message.create({
+      data: {
+        conversationId: conversation.id,
+        remoteMessageId: messageId,
+        direction: isFromMe ? "OUTBOUND" : "INBOUND",
+        body,
+        status: isFromMe ? "SENT" : "DELIVERED",
+      },
+    })
   }
 }
 
-async function handleConnectionUpdate(instanceName: string, data: Record<string, unknown>) {
-  const state = data?.state as string
-  const connected = state === "open"
+async function handleConnectionUpdate(instanceName: string, data: unknown) {
+  const d = (data ?? {}) as Record<string, unknown>
+  const state = (d.state ?? d.status ?? "") as string
+  const connected = state === "open" || state === "CONNECTED"
 
   await db.whatsAppInstance.updateMany({
     where: { name: instanceName },
@@ -118,22 +159,24 @@ async function handleMessageUpdate(data: unknown) {
 
   for (const update of updates) {
     const u = update as Record<string, unknown>
-    const key = u.key as Record<string, unknown>
-    const status = u.status as string
+    const key = (u.key ?? {}) as Record<string, unknown>
+    const status = (u.status ?? u.ack ?? "") as string
 
     if (!key?.id || !status) continue
 
-    const statusMap: Record<string, string> = {
+    const statusMap: Record<string, "DELIVERED" | "READ"> = {
       DELIVERY_ACK: "DELIVERED",
+      "3": "DELIVERED",
       READ: "READ",
       PLAYED: "READ",
+      "4": "READ",
     }
 
     const mapped = statusMap[status]
     if (mapped) {
       await db.message.updateMany({
         where: { remoteMessageId: key.id as string },
-        data: { status: mapped as "DELIVERED" | "READ" },
+        data: { status: mapped },
       })
     }
   }
