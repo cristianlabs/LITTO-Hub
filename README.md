@@ -1,33 +1,21 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+Litto Hub
+Como usar:
+Copie o repositorio;
+# Suba o banco de dados com:
+docker-compose up -d
 
-## Getting Started
+# Crie as tabelas
+npm run db:push
 
-First, run the development server:
+# Popule com dados de teste
+npm run db:seed
 
-```bash
+# Inicie o servidor
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Ou acesse o sistema hospedado:
+Usando o browser de sua preferencia:
+Acesse:
 
 ## Deploy on Vercel
 

@@ -93,6 +93,14 @@ enum LmsCategory {
   OTHER
 }
 
+enum PurchaseOrderStatus {
+  PENDING
+  ORDERED
+  PARTIAL
+  RECEIVED
+  CANCELLED
+}
+
 enum MessageDirection {
   INBOUND
   OUTBOUND
@@ -109,6 +117,44 @@ enum ConversationStatus {
   OPEN
   RESOLVED
   WAITING
+}
+
+enum FiscalNoteType {
+  ENTRADA
+  SAIDA
+}
+
+enum FiscalNoteStatus {
+  PENDING
+  RECEIVED
+  CANCELLED
+}
+
+enum BillStatus {
+  PENDING
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+enum ReceivableStatus {
+  PENDING
+  RECEIVED
+  OVERDUE
+  CANCELLED
+}
+
+enum BankAccountType {
+  CHECKING
+  SAVINGS
+  INVESTMENT
+  CASH
+}
+
+enum TransactionType {
+  IN
+  OUT
+  TRANSFER
 }
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
@@ -129,15 +175,18 @@ model User {
   sessions            Session[]
   auditLogs           AuditLog[]
   activities          Activity[]
+  deals               Deal[]
   notifications       Notification[]
   stockAlertConfig    StockAlertConfig?
   requisitions        Requisition[]
   requisitionComments RequisitionComment[]
+  purchaseOrders      PurchaseOrder[]
   learningProgress    LearningProgress[]
   sentFeedbacks       Feedback[]           @relation("SentFeedbacks")
   receivedFeedbacks   Feedback[]           @relation("ReceivedFeedbacks")
   assignedConversations Conversation[]
-  sentMessages        Message[]
+  sentMessages          Message[]
+  flaggedMessages       FlaggedMessage[]
 }
 
 model Account {
@@ -211,6 +260,11 @@ model Contact {
   phone        String?
   whatsapp     String?
   cpf          String?
+  cnpj         String?
+  razaoSocial  String?
+  position     String?
+  leadSource   String?
+  creditLimit  Float?
   status       ContactStatus @default(LEAD)
   tags         String[]
   notes        String?
@@ -219,10 +273,11 @@ model Contact {
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
 
-  company    Company?     @relation(fields: [companyId], references: [id])
-  deals      Deal[]
-  activities Activity[]
+  company       Company?     @relation(fields: [companyId], references: [id])
+  deals         Deal[]
+  activities    Activity[]
   conversations Conversation[]
+  receivables   Receivable[]
 }
 
 model Pipeline {
@@ -241,13 +296,28 @@ model Deal {
   status        DealStatus @default(OPEN)
   pipelineId    String
   contactId     String?
+  sellerId      String?
   expectedClose DateTime?
+  closedAt      DateTime?
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
 
   pipeline   Pipeline   @relation(fields: [pipelineId], references: [id])
   contact    Contact?   @relation(fields: [contactId], references: [id])
+  seller     User?      @relation(fields: [sellerId], references: [id])
   activities Activity[]
+  items      DealItem[]
+}
+
+model DealItem {
+  id        String  @id @default(cuid())
+  dealId    String
+  productId String
+  quantity  Int
+  unitPrice Decimal
+
+  deal    Deal    @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id])
 }
 
 model Activity {
@@ -306,10 +376,11 @@ model Product {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  category  ProductCategory? @relation(fields: [categoryId], references: [id])
-  supplier  Supplier?        @relation(fields: [supplierId], references: [id])
-  movements StockMovement[]
-  alerts    StockAlert[]
+  category   ProductCategory? @relation(fields: [categoryId], references: [id])
+  supplier   Supplier?        @relation(fields: [supplierId], references: [id])
+  movements  StockMovement[]
+  alerts     StockAlert[]
+  dealItems  DealItem[]
 }
 
 model StockMovement {
@@ -378,8 +449,41 @@ model Requisition {
   createdAt   DateTime            @default(now())
   updatedAt   DateTime            @updatedAt
 
-  user     User                 @relation(fields: [userId], references: [id])
-  comments RequisitionComment[]
+  user          User                 @relation(fields: [userId], references: [id])
+  comments      RequisitionComment[]
+  purchaseOrder PurchaseOrder?
+}
+
+model PurchaseOrder {
+  id            String              @id @default(cuid())
+  number        String              @unique
+  title         String
+  supplier      String?
+  totalValue    Decimal             @default(0)
+  status        PurchaseOrderStatus @default(PENDING)
+  requisitionId String?             @unique
+  notes         String?
+  orderedAt     DateTime?
+  receivedAt    DateTime?
+  createdById   String
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  requisition  Requisition?       @relation(fields: [requisitionId], references: [id])
+  createdBy    User               @relation(fields: [createdById], references: [id])
+  items        PurchaseOrderItem[]
+  fiscalNotes  FiscalNote[]
+}
+
+model PurchaseOrderItem {
+  id          String        @id @default(cuid())
+  orderId     String
+  description String
+  quantity    Int           @default(1)
+  unit        String        @default("un")
+  unitPrice   Decimal       @default(0)
+
+  order PurchaseOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
 }
 
 model RequisitionComment {
@@ -482,12 +586,146 @@ model Conversation {
   createdAt   DateTime           @default(now())
   updatedAt   DateTime           @updatedAt
 
-  instance  WhatsAppInstance @relation(fields: [instanceId], references: [id])
-  contact   Contact?         @relation(fields: [contactId], references: [id])
-  assignee  User?            @relation(fields: [assignedTo], references: [id])
-  messages  Message[]
+  instance        WhatsAppInstance @relation(fields: [instanceId], references: [id])
+  contact         Contact?         @relation(fields: [contactId], references: [id])
+  assignee        User?            @relation(fields: [assignedTo], references: [id])
+  messages        Message[]
+  flaggedMessages FlaggedMessage[]
 
   @@unique([instanceId, remoteJid])
+}
+
+// ─── Configurações do Sistema ─────────────────────────────────────────────────
+
+model SystemConfig {
+  key       String   @id
+  value     String   @db.Text
+  updatedAt DateTime @updatedAt
+}
+
+// ─── Permissões de Módulo ─────────────────────────────────────────────────────
+
+model ModulePermission {
+  id     String @id @default(cuid())
+  module String
+  role   Role
+
+  @@unique([module, role])
+}
+
+// ─── Financeiro ───────────────────────────────────────────────────────────────
+
+model BankAccount {
+  id        String          @id @default(cuid())
+  name      String
+  bank      String?
+  agency    String?
+  account   String?
+  type      BankAccountType @default(CHECKING)
+  balance   Decimal         @default(0)
+  active    Boolean         @default(true)
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  bills         Bill[]
+  receivables   Receivable[]
+  transactions  CashTransaction[]
+}
+
+model Bill {
+  id            String     @id @default(cuid())
+  title         String
+  description   String?
+  amount        Decimal
+  dueDate       DateTime
+  paidAt        DateTime?
+  status        BillStatus @default(PENDING)
+  category      String
+  supplier      String?
+  recurring     Boolean    @default(false)
+  bankAccountId String?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  bankAccount BankAccount? @relation(fields: [bankAccountId], references: [id])
+}
+
+model Receivable {
+  id            String           @id @default(cuid())
+  title         String
+  description   String?
+  amount        Decimal
+  dueDate       DateTime
+  receivedAt    DateTime?
+  status        ReceivableStatus @default(PENDING)
+  category      String
+  client        String?
+  contactId     String?
+  bankAccountId String?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  contact     Contact?     @relation(fields: [contactId], references: [id])
+  bankAccount BankAccount? @relation(fields: [bankAccountId], references: [id])
+}
+
+model CashTransaction {
+  id            String          @id @default(cuid())
+  bankAccountId String
+  type          TransactionType
+  amount        Decimal
+  description   String
+  date          DateTime
+  category      String?
+  createdAt     DateTime        @default(now())
+
+  bankAccount BankAccount @relation(fields: [bankAccountId], references: [id])
+}
+
+model Budget {
+  id       String  @id @default(cuid())
+  year     Int
+  month    Int
+  category String
+  planned  Decimal @default(0)
+
+  @@unique([year, month, category])
+}
+
+// ─── NF-e & Canhoto ───────────────────────────────────────────────────────────
+
+model FiscalNote {
+  id             String           @id @default(cuid())
+  number         String
+  series         String           @default("1")
+  type           FiscalNoteType
+  status         FiscalNoteStatus @default(PENDING)
+  accessKey      String?          @unique
+  emitter        String
+  recipient      String?
+  totalValue     Decimal          @default(0)
+  emittedAt      DateTime
+  notes          String?
+  purchaseOrderId String?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  purchaseOrder PurchaseOrder? @relation(fields: [purchaseOrderId], references: [id])
+  canhoto       Canhoto?
+
+  @@unique([number, series, emitter])
+}
+
+model Canhoto {
+  id           String    @id @default(cuid())
+  fiscalNoteId String    @unique
+  receivedBy   String
+  receivedAt   DateTime
+  observations String?
+  confirmed    Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+
+  fiscalNote FiscalNote @relation(fields: [fiscalNoteId], references: [id], onDelete: Cascade)
 }
 
 model Message {
@@ -502,6 +740,27 @@ model Message {
   sentBy         String?
   createdAt      DateTime         @default(now())
 
-  conversation Conversation @relation(fields: [conversationId], references: [id])
-  sender       User?        @relation(fields: [sentBy], references: [id])
+  conversation    Conversation    @relation(fields: [conversationId], references: [id])
+  sender          User?           @relation(fields: [sentBy], references: [id])
+  flaggedMessage  FlaggedMessage?
+}
+
+// ─── Moderação ────────────────────────────────────────────────────────────────
+
+model FlaggedMessage {
+  id             String           @id @default(cuid())
+  messageId      String           @unique
+  conversationId String
+  body           String           @db.Text
+  triggeredWords String[]
+  direction      MessageDirection
+  sentByUserId   String?
+  remoteJid      String
+  instanceName   String
+  notifiedAt     DateTime?
+  createdAt      DateTime         @default(now())
+
+  message      Message      @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sentBy       User?        @relation(fields: [sentByUserId], references: [id])
 }
