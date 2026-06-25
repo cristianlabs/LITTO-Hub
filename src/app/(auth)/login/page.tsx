@@ -84,7 +84,7 @@ export default function LoginPage() {
       otpRefs.current[0]?.focus()
       setLoading(false)
     } else {
-      router.push("/")
+      router.push("/crm")
     }
   }
 
