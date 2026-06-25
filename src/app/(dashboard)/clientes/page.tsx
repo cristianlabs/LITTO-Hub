@@ -41,7 +41,7 @@ export default async function ClientesPage({
     creditLimit: c.creditLimit ? Number(c.creditLimit) : null,
     createdAt: c.createdAt.toISOString(),
     updatedAt: c.updatedAt.toISOString(),
-    deals: c.deals.map((d) => ({ value: Number(d.value), status: d.status })),
+    deals: c.deals.map((d: { value: { toNumber?: () => number } | number | null; status: string }) => ({ value: d.value ? Number(d.value) : 0, status: d.status })),
   }))
 
   return (
