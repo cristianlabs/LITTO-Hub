@@ -2,7 +2,7 @@ import nodemailer from "nodemailer"
 
 function createTransport() {
   return nodemailer.createTransport({
-    host: process.env.SMTP_HOST ?? "smtp.gmail.com",
+    host: process.env.SMTP_HOST ?? "smtp.kinghost.net",
     port: parseInt(process.env.SMTP_PORT ?? "587"),
     secure: (process.env.SMTP_PORT ?? "587") === "465",
     auth: {
