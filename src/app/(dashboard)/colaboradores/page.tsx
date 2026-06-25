@@ -19,7 +19,8 @@ export default async function ColaboradoresPage() {
     },
   })
 
-  const serialized = users.map((u) => ({
+  type UserRaw = typeof users[number]
+  const serialized = users.map((u: UserRaw) => ({
     ...u,
     createdAt: u.createdAt.toISOString(),
   }))
