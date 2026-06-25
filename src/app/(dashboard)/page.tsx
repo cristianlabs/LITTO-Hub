@@ -13,6 +13,7 @@ import Link from "next/link"
 export default async function DashboardPage() {
   const session = await auth()
   if (!session) redirect("/login")
+  redirect("/crm")
 
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
 
