@@ -48,6 +48,12 @@ export default function LoginPage() {
 
       if (!res.ok) {
         setError(data.error ?? "Erro ao enviar código")
+      } else if (data.bypass && data.otp) {
+        // Bypass mode: auto-fill and submit without showing OTP screen
+        setStep("otp")
+        const digits = String(data.otp).split("")
+        setOtp(digits)
+        await handleOtp(String(data.otp))
       } else {
         setStep("otp")
         setResendCooldown(60)

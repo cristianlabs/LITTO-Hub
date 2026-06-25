@@ -36,6 +36,14 @@ export async function POST(req: NextRequest) {
 
   await db.twoFactorToken.create({ data: { email, token: otp, expiresAt } })
 
+  // Bypass emails skip the email send and receive the OTP directly in the response
+  const bypassEmails = (process.env.TWO_FACTOR_BYPASS_EMAILS ?? "")
+    .split(",").map((e) => e.trim().toLowerCase()).filter(Boolean)
+
+  if (bypassEmails.includes(email.toLowerCase())) {
+    return NextResponse.json({ ok: true, bypass: true, otp })
+  }
+
   try {
     await sendOtpEmail(email, otp, user.name)
   } catch (err) {
