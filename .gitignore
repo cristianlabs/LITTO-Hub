@@ -2,3 +2,5 @@ node_modules
 .next
 CLAUDE.md
 AGENTS.md
+/.env
+/.env.local
