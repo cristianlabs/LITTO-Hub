@@ -10,34 +10,48 @@ const prisma = new PrismaClient({ adapter })
 async function main() {
   console.log("🌱 Iniciando seed...")
 
+  // ─── Limpeza (ordem inversa de dependências) ──────────────────────────────
+  await prisma.notification.deleteMany()
+  await prisma.requisition.deleteMany()
+  await prisma.stockMovement.deleteMany().catch(() => {})
+  await prisma.product.deleteMany()
+  await prisma.productCategory.deleteMany()
+  await prisma.supplier.deleteMany()
+  await prisma.activity.deleteMany()
+  await prisma.deal.deleteMany()
+  await prisma.pipeline.deleteMany()
+  await prisma.contact.deleteMany()
+  await prisma.company.deleteMany()
+  await prisma.stockAlertConfig.deleteMany()
+
   // ─── Users ───────────────────────────────────────────────────────────────
   const password = await bcrypt.hash("senha123", 12)
 
   const [owner, lider, gestor, vendedora1, vendedora2] = await Promise.all([
     prisma.user.upsert({
       where: { email: "dono@empresa.com" },
-      update: {},
-      create: { email: "dono@empresa.com", name: "Carlos Dono", password, role: "OWNER" },
+      update: { active: true, password, role: "OWNER" },
+      create: { email: "dono@empresa.com", name: "Carlos Dono", password, role: "OWNER", active: true },
     }),
     prisma.user.upsert({
       where: { email: "lider@empresa.com" },
-      update: {},
-      create: { email: "lider@empresa.com", name: "Maria Líder", password, role: "HEAD_LEADER" },
+      update: { active: true, password, role: "HEAD_LEADER" },
+      create: { email: "lider@empresa.com", name: "Maria Líder", password, role: "HEAD_LEADER", active: true },
     }),
     prisma.user.upsert({
       where: { email: "gestor@empresa.com" },
-      update: {},
-      create: { email: "gestor@empresa.com", name: "João Gestor", password, role: "MANAGER" },
+      update: { active: true, password, role: "MANAGER" },
+      create: { email: "gestor@empresa.com", name: "João Gestor", password, role: "MANAGER", active: true },
     }),
     prisma.user.upsert({
       where: { email: "vendedora1@empresa.com" },
-      update: {},
-      create: { email: "vendedora1@empresa.com", name: "Ana Silva", password, role: "SELLER" },
+      update: { active: true, password, role: "SELLER" },
+      create: { email: "vendedora1@empresa.com", name: "Ana Silva", password, role: "SELLER", active: true },
     }),
     prisma.user.upsert({
       where: { email: "vendedora2@empresa.com" },
-      update: {},
-      create: { email: "vendedora2@empresa.com", name: "Carla Santos", password, role: "SELLER" },
+      update: { active: true, password, role: "SELLER" },
+      create: { email: "vendedora2@empresa.com", name: "Carla Santos", password, role: "SELLER", active: true },
     }),
   ])
 
@@ -228,8 +242,10 @@ async function main() {
   ])
 
   await Promise.all([
-    prisma.product.create({
-      data: {
+    prisma.product.upsert({
+      where: { sku: "ELET-001" },
+      update: {},
+      create: {
         sku: "ELET-001",
         name: "Notebook Dell Inspiron 15",
         categoryId: catElet.id,
@@ -241,34 +257,40 @@ async function main() {
         maxStock: 20,
       },
     }),
-    prisma.product.create({
-      data: {
+    prisma.product.upsert({
+      where: { sku: "ELET-002" },
+      update: {},
+      create: {
         sku: "ELET-002",
         name: "Mouse Wireless Logitech",
         categoryId: catElet.id,
         supplierId: supplier.id,
         costPrice: 80,
         salePrice: 149,
-        currentStock: 0, // ZERADO
+        currentStock: 0,
         minStock: 5,
         maxStock: 50,
       },
     }),
-    prisma.product.create({
-      data: {
+    prisma.product.upsert({
+      where: { sku: "PAP-001" },
+      update: {},
+      create: {
         sku: "PAP-001",
         name: "Resma de Papel A4",
         categoryId: catPap.id,
         costPrice: 18,
         salePrice: 35,
-        currentStock: 2, // ABAIXO DO MÍNIMO
+        currentStock: 2,
         minStock: 10,
         maxStock: 100,
         unit: "pacote",
       },
     }),
-    prisma.product.create({
-      data: {
+    prisma.product.upsert({
+      where: { sku: "PAP-002" },
+      update: {},
+      create: {
         sku: "PAP-002",
         name: "Caneta BIC Azul (cx 50un)",
         categoryId: catPap.id,
@@ -280,8 +302,10 @@ async function main() {
         unit: "cx",
       },
     }),
-    prisma.product.create({
-      data: {
+    prisma.product.upsert({
+      where: { sku: "INFO-001" },
+      update: {},
+      create: {
         sku: "INFO-001",
         name: "Teclado Mecânico RGB",
         categoryId: catInfo.id,
@@ -293,8 +317,10 @@ async function main() {
         maxStock: 15,
       },
     }),
-    prisma.product.create({
-      data: {
+    prisma.product.upsert({
+      where: { sku: "INFO-002" },
+      update: {},
+      create: {
         sku: "INFO-002",
         name: "Monitor LED 24\" Full HD",
         categoryId: catInfo.id,
