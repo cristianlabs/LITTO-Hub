@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ContactFormSheet } from "./contact-form-sheet"
 import { formatDate, getInitials } from "@/lib/utils"
-import { GitBranch, Phone, MessageCircle, Search, Pencil, Trash2, Eye } from "lucide-react"
+import { GitBranch, Phone, MessageCircle, Search, Pencil, Trash2, Eye, CalendarDays } from "lucide-react"
 import type { ContactStatus } from "@prisma/client"
 
 const STATUS_LABELS: Record<ContactStatus, string> = {
@@ -124,6 +124,12 @@ export function ContactsTable({ contacts, total, countMap, currentQ, currentStat
             <Button variant="outline" size="sm">
               <GitBranch className="w-4 h-4 mr-1.5" />
               Pipeline
+            </Button>
+          </Link>
+          <Link href="/crm/calendario">
+            <Button variant="outline" size="sm">
+              <CalendarDays className="w-4 h-4 mr-1.5" />
+              Agenda
             </Button>
           </Link>
           <Button size="sm" onClick={handleNew}>

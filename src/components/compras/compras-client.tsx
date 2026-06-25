@@ -10,9 +10,10 @@ import { Label } from "@/components/ui/label"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from "@/components/ui/sheet"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { formatCurrency, timeAgo } from "@/lib/utils"
-import { Plus, Trash2, Search, ShoppingCart, Package, CheckCircle2, XCircle, ExternalLink, ChevronDown } from "lucide-react"
+import { Plus, Trash2, Search, ShoppingCart, Package, CheckCircle2, XCircle, ExternalLink, ChevronDown, Building2 } from "lucide-react"
 import Link from "next/link"
 import type { PurchaseOrderStatus } from "@prisma/client"
+import { FornecedoresTab } from "./fornecedores-tab"
 
 interface OrderItem {
   id: string
@@ -45,9 +46,17 @@ interface PurchaseOrder {
   items: OrderItem[]
 }
 
+interface Supplier {
+  id: string; name: string; cnpj: string | null; email: string | null
+  phone: string | null; contact: string | null
+  _count: { products: number }
+  purchaseOrders: { id: string; number: string; title: string; totalValue: number; status: string }[]
+}
+
 interface Props {
   initialOrders: PurchaseOrder[]
   pendingRequisitions: Requisition[]
+  suppliers: Supplier[]
   canManage: boolean
 }
 
@@ -86,7 +95,8 @@ const schema = z.object({
 
 type FormData = z.infer<typeof schema>
 
-export function ComprasClient({ initialOrders, pendingRequisitions, canManage }: Props) {
+export function ComprasClient({ initialOrders, pendingRequisitions, suppliers, canManage }: Props) {
+  const [tab, setTab] = useState<"pedidos" | "fornecedores">("pedidos")
   const [orders, setOrders] = useState(initialOrders)
   const [search, setSearch] = useState("")
   const [filterStatus, setFilterStatus] = useState<PurchaseOrderStatus | "ALL">("ALL")
@@ -165,6 +175,18 @@ export function ComprasClient({ initialOrders, pendingRequisitions, canManage }:
 
   return (
     <div className="p-6 space-y-6">
+      {/* Tabs */}
+      <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit">
+        <button onClick={() => setTab("pedidos")} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${tab === "pedidos" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}>
+          <ShoppingCart className="w-4 h-4" /> Pedidos de Compra
+        </button>
+        <button onClick={() => setTab("fornecedores")} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${tab === "fornecedores" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}>
+          <Building2 className="w-4 h-4" /> Fornecedores
+        </button>
+      </div>
+
+      {tab === "fornecedores" && <FornecedoresTab initialSuppliers={suppliers} />}
+      {tab === "pedidos" && <>
       {/* KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {kpis.map((k) => {
@@ -466,6 +488,7 @@ export function ComprasClient({ initialOrders, pendingRequisitions, canManage }:
 
       {/* Click outside status dropdown */}
       {statusOpen && <div className="fixed inset-0 z-0" onClick={() => setStatusOpen(null)} />}
+      </>}
     </div>
   )
 }

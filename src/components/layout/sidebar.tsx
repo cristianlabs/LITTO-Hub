@@ -19,31 +19,41 @@ import {
   MessageSquare,
   Settings,
   LogOut,
+  Landmark,
+  ShieldAlert,
 } from "lucide-react"
 import { cn, getInitials } from "@/lib/utils"
 import { ROLE_LABELS } from "@/lib/permissions"
 import type { Role } from "@prisma/client"
 
-const navItems = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/crm", label: "CRM", icon: Users },
-  { href: "/clientes", label: "Clientes", icon: Building2 },
-  { href: "/vendas", label: "Vendas", icon: TrendingUp },
-  { href: "/colaboradores", label: "Colaboradores", icon: UserCog },
-  { href: "/estoque", label: "Estoque", icon: Package },
-  { href: "/compras", label: "Compras", icon: ShoppingCart },
-  { href: "/comunicacao", label: "Comunicação", icon: MessageCircle },
-  { href: "/chatbot", label: "Chatbot", icon: Bot },
-  { href: "/nfe", label: "NF-e & Canhoto", icon: FileText },
-  { href: "/treinamentos", label: "Treinamentos", icon: GraduationCap },
-  { href: "/requisicoes", label: "Requisições", icon: ClipboardList },
-  { href: "/feedback", label: "Feedback", icon: MessageSquare },
-  { href: "/configuracoes", label: "Configurações", icon: Settings },
+const ALL_NAV_ITEMS = [
+  { key: "dashboard", href: "/", label: "Dashboard", icon: LayoutDashboard },
+  { key: "crm", href: "/crm", label: "CRM", icon: Users },
+  { key: "clientes", href: "/clientes", label: "Clientes", icon: Building2 },
+  { key: "vendas", href: "/vendas", label: "Vendas", icon: TrendingUp },
+  { key: "financeiro", href: "/financeiro", label: "Financeiro", icon: Landmark },
+  { key: "colaboradores", href: "/colaboradores", label: "Colaboradores", icon: UserCog },
+  { key: "estoque", href: "/estoque", label: "Estoque", icon: Package },
+  { key: "compras", href: "/compras", label: "Compras", icon: ShoppingCart },
+  { key: "comunicacao", href: "/comunicacao", label: "Comunicação", icon: MessageCircle },
+  { key: "chatbot", href: "/chatbot", label: "Chatbot", icon: Bot },
+  { key: "nfe", href: "/nfe", label: "NF-e & Canhoto", icon: FileText },
+  { key: "treinamentos", href: "/treinamentos", label: "Treinamentos", icon: GraduationCap },
+  { key: "requisicoes", href: "/requisicoes", label: "Requisições", icon: ClipboardList },
+  { key: "feedback", href: "/feedback", label: "Feedback", icon: MessageSquare },
+  { key: "moderacao", href: "/moderacao", label: "Moderação", icon: ShieldAlert },
+  { key: "configuracoes", href: "/configuracoes", label: "Configurações", icon: Settings },
 ]
 
-export function Sidebar() {
+interface Props {
+  allowedModules: string[]
+}
+
+export function Sidebar({ allowedModules }: Props) {
   const pathname = usePathname()
   const { data: session } = useSession()
+
+  const navItems = ALL_NAV_ITEMS.filter((item) => allowedModules.includes(item.key))
 
   function isActive(href: string) {
     if (href === "/") return pathname === "/"

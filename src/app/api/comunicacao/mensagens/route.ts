@@ -2,40 +2,93 @@ import { auth } from "@/lib/auth"
 import { db } from "@/lib/db"
 import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
-import { sendTextMessage } from "@/lib/evolution"
+import { sendTextMessage, sendMediaMessage } from "@/lib/evolution"
+import { verificarEFlagarMensagem } from "@/lib/moderacao"
 
-const schema = z.object({
-  conversationId: z.string(),
-  body: z.string().min(1),
-})
+const mediaTypes = ["image", "video", "document", "audio"] as const
+
+const schema = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("text"),
+    conversationId: z.string(),
+    body: z.string().min(1),
+  }),
+  z.object({
+    type: z.enum(mediaTypes),
+    conversationId: z.string(),
+    mediaBase64: z.string().min(1),
+    caption: z.string().optional(),
+    fileName: z.string().optional(),
+    mimetype: z.string().optional(),
+  }),
+])
+
+function parseEvolutionError(err: unknown): { notOnWhatsApp: boolean; message: string } {
+  const msg = err instanceof Error ? err.message : String(err)
+  if (msg.includes('"exists":false') || msg.includes("exists")) {
+    return { notOnWhatsApp: true, message: "Número não encontrado no WhatsApp" }
+  }
+  return { notOnWhatsApp: false, message: msg }
+}
+
+const DEFAULT_BODY: Record<string, string> = {
+  image: "[imagem]", video: "[vídeo]", document: "[documento]", audio: "[áudio]",
+}
 
 export async function POST(req: NextRequest) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-  const body = await req.json()
-  const parsed = schema.safeParse(body)
+  const raw = await req.json()
+  if (!raw.type) raw.type = "text"
+
+  const parsed = schema.safeParse(raw)
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
 
   const conversation = await db.conversation.findUnique({
     where: { id: parsed.data.conversationId },
     include: { instance: true },
   })
-
   if (!conversation) return NextResponse.json({ error: "Conversation not found" }, { status: 404 })
 
-  // Send via Evolution API
+  const instanceName = conversation.instance.name
+  const remoteJid = conversation.remoteJid
+
   let remoteMessageId: string | undefined
+  let msgBody: string
+  let msgType: string = parsed.data.type
+  let mediaUrl: string | null = null
+  let sendError: string | null = null
+
   try {
-    const result = await sendTextMessage(
-      conversation.instance.name,
-      conversation.remoteJid,
-      parsed.data.body,
-    )
-    remoteMessageId = result?.key?.id
+    if (parsed.data.type === "text") {
+      msgBody = parsed.data.body
+      const result = await sendTextMessage(instanceName, remoteJid, msgBody)
+      remoteMessageId = result?.key?.id
+    } else {
+      const { type, mediaBase64, caption, fileName, mimetype } = parsed.data as {
+        type: string; mediaBase64: string; caption?: string; fileName?: string; mimetype?: string
+      }
+      msgBody = caption ?? fileName ?? DEFAULT_BODY[type] ?? `[${type}]`
+      mediaUrl = mediaBase64
+      const result = await sendMediaMessage(
+        instanceName, remoteJid,
+        type as "image" | "video" | "document" | "audio",
+        mediaBase64, caption, fileName, mimetype
+      )
+      remoteMessageId = result?.key?.id
+    }
   } catch (err) {
-    console.error("[mensagens POST] Evolution error:", err)
-    // Continue — save message locally even if send fails (offline/dev mode)
+    const e = parseEvolutionError(err)
+    console.error("[mensagens POST] Evolution error:", e.message)
+    sendError = e.message
+    if (parsed.data.type === "text") {
+      msgBody = parsed.data.body
+    } else {
+      const d = parsed.data as { caption?: string; fileName?: string; mediaBase64: string }
+      msgBody = d.caption ?? d.fileName ?? DEFAULT_BODY[parsed.data.type] ?? `[${parsed.data.type}]`
+      mediaUrl = d.mediaBase64
+    }
   }
 
   const message = await db.message.create({
@@ -43,18 +96,32 @@ export async function POST(req: NextRequest) {
       conversationId: conversation.id,
       remoteMessageId: remoteMessageId ?? null,
       direction: "OUTBOUND",
-      body: parsed.data.body,
+      body: msgBody!,
+      type: msgType,
+      mediaUrl,
       sentBy: session.user.id,
-      status: "SENT",
+      status: sendError ? "FAILED" : "SENT",
     },
     include: { sender: { select: { id: true, name: true } } },
   })
 
-  // Update conversation last message
   await db.conversation.update({
     where: { id: conversation.id },
-    data: { lastMessage: parsed.data.body, lastMessageAt: new Date() },
+    data: { lastMessage: msgBody!, lastMessageAt: new Date() },
   })
 
-  return NextResponse.json(message, { status: 201 })
+  // Moderation check for outbound messages from UI (fire-and-forget)
+  if (!sendError && parsed.data.type === "text") {
+    verificarEFlagarMensagem({
+      messageId: message.id,
+      conversationId: conversation.id,
+      body: msgBody!,
+      direction: "OUTBOUND",
+      sentByUserId: session.user.id,
+      remoteJid,
+      instanceName,
+    }).catch((err) => console.error("[moderacao mensagens]", err))
+  }
+
+  return NextResponse.json({ ...message, sendError }, { status: 201 })
 }

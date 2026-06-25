@@ -19,7 +19,7 @@ interface Props {
 export function NovaConversaModal({ instances, onClose, onSuccess }: Props) {
   const connected = instances.filter((i) => i.connected)
   const [instanceId, setInstanceId] = useState(connected[0]?.id ?? "")
-  const [phone, setPhone] = useState("")
+  const [phone, setPhone] = useState("55")
   const [message, setMessage] = useState("")
   const [sending, setSending] = useState(false)
   const [error, setError] = useState("")

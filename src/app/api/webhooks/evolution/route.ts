@@ -1,6 +1,7 @@
 import { db } from "@/lib/db"
 import { NextRequest, NextResponse } from "next/server"
 import { normalizeJid } from "@/lib/evolution"
+import { verificarEFlagarMensagem } from "@/lib/moderacao"
 
 // Webhook verification (GET) — some validators ping this
 export async function GET() {
@@ -76,17 +77,55 @@ async function handleMessageUpsert(instanceName: string, data: unknown) {
 
     // Extract message body from multiple possible locations
     const msgContent = (msg.message ?? msg.body ?? {}) as Record<string, unknown>
+
+    // Detect media type and extract base64
+    const imageMsg = msgContent.imageMessage as Record<string, unknown> | undefined
+    const audioMsg = msgContent.audioMessage as Record<string, unknown> | undefined
+    const videoMsg = msgContent.videoMessage as Record<string, unknown> | undefined
+    const docMsg = msgContent.documentMessage as Record<string, unknown> | undefined
+    const stickerMsg = msgContent.stickerMessage as Record<string, unknown> | undefined
+
+    let msgType = "text"
+    let mediaUrl: string | null = null
+
+    if (imageMsg ?? stickerMsg) {
+      msgType = "image"
+      const src = (imageMsg ?? stickerMsg) as Record<string, unknown>
+      const b64 = src.base64 as string | undefined
+      const mime = (src.mimetype as string | undefined) ?? "image/jpeg"
+      if (b64) mediaUrl = `data:${mime};base64,${b64}`
+      else if (src.url) mediaUrl = src.url as string
+    } else if (audioMsg) {
+      msgType = "audio"
+      const b64 = audioMsg.base64 as string | undefined
+      const mime = (audioMsg.mimetype as string | undefined) ?? "audio/ogg"
+      if (b64) mediaUrl = `data:${mime};base64,${b64}`
+      else if (audioMsg.url) mediaUrl = audioMsg.url as string
+    } else if (videoMsg) {
+      msgType = "video"
+      const b64 = videoMsg.base64 as string | undefined
+      const mime = (videoMsg.mimetype as string | undefined) ?? "video/mp4"
+      if (b64) mediaUrl = `data:${mime};base64,${b64}`
+      else if (videoMsg.url) mediaUrl = videoMsg.url as string
+    } else if (docMsg) {
+      msgType = "document"
+      const b64 = docMsg.base64 as string | undefined
+      const mime = (docMsg.mimetype as string | undefined) ?? "application/octet-stream"
+      if (b64) mediaUrl = `data:${mime};base64,${b64}`
+      else if (docMsg.url) mediaUrl = docMsg.url as string
+    }
+
     const body: string =
       (msg.body as string) ||
       (msgContent.conversation as string) ||
       ((msgContent.extendedTextMessage as Record<string, unknown>)?.text as string) ||
-      ((msgContent.imageMessage as Record<string, unknown>)?.caption as string) ||
-      ((msgContent.videoMessage as Record<string, unknown>)?.caption as string) ||
-      ((msgContent.documentMessage as Record<string, unknown>)?.title as string) ||
-      ((msgContent.audioMessage as Record<string, unknown>) ? "[áudio]" : "") ||
+      (imageMsg?.caption as string) ||
+      (videoMsg?.caption as string) ||
+      (docMsg?.fileName as string) ||
+      (msgType !== "text" ? `[${msgType}]` : "") ||
       "[mídia]"
 
-    if (!body) continue
+    if (!body && !mediaUrl) continue
 
     // Find or create conversation
     let conversation = await db.conversation.findUnique({
@@ -131,15 +170,28 @@ async function handleMessageUpsert(instanceName: string, data: unknown) {
       if (existing) continue
     }
 
-    await db.message.create({
+    const savedMsg = await db.message.create({
       data: {
         conversationId: conversation.id,
         remoteMessageId: messageId,
         direction: isFromMe ? "OUTBOUND" : "INBOUND",
         body,
+        type: msgType,
+        mediaUrl,
         status: isFromMe ? "SENT" : "DELIVERED",
       },
     })
+
+    // Run moderation check asynchronously — don't block message save
+    verificarEFlagarMensagem({
+      messageId: savedMsg.id,
+      conversationId: conversation.id,
+      body,
+      direction: isFromMe ? "OUTBOUND" : "INBOUND",
+      sentByUserId: null, // Webhook doesn't carry userId; resolved via sentBy if set later
+      remoteJid,
+      instanceName,
+    }).catch((err) => console.error("[moderacao webhook]", err))
   }
 }
 

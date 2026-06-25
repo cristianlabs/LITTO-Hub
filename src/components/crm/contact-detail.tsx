@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { ContactFormSheet } from "./contact-form-sheet"
 import { ActivityFeed } from "./activity-feed"
 import { formatCurrency, formatDate, getInitials } from "@/lib/utils"
-import { ArrowLeft, Phone, MessageCircle, Mail, Pencil } from "lucide-react"
+import { ArrowLeft, Phone, MessageCircle, Mail, Pencil, Loader2 } from "lucide-react"
 import type { ContactStatus, DealStatus, ActivityType } from "@prisma/client"
 
 const STATUS_LABELS: Record<ContactStatus, string> = {
@@ -37,16 +37,17 @@ interface Activity {
   title: string
   content?: string | null
   completed: boolean
-  createdAt: Date
+  createdAt: Date | string
+  dueDate?: Date | string | null
   user: { id: string; name: string | null }
 }
 
 interface Deal {
   id: string
   title: string
-  value?: { toString(): string } | null
+  value?: number | string | { toString(): string } | null
   status: DealStatus
-  expectedClose?: Date | null
+  expectedClose?: Date | string | null
   pipeline: { name: string; color: string }
 }
 
@@ -57,16 +58,46 @@ interface Contact {
   phone?: string | null
   whatsapp?: string | null
   cpf?: string | null
+  position?: string | null
+  leadSource?: string | null
   status: ContactStatus
   notes?: string | null
-  createdAt: Date
+  createdAt: Date | string
   company?: { id: string; name: string } | null
   deals: Deal[]
   activities: Activity[]
 }
 
 export function ContactDetail({ contact }: { contact: Contact }) {
+  const [openingChat, setOpeningChat] = useState(false)
   const router = useRouter()
+
+  async function abrirConversa() {
+    const phone = contact.whatsapp || contact.phone
+    if (!phone) {
+      alert("Este contato não tem WhatsApp ou telefone cadastrado.")
+      return
+    }
+    setOpeningChat(true)
+    try {
+      const res = await fetch("/api/comunicacao/conversas/abrir", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone, contactId: contact.id }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        alert(data.error ?? "Erro ao abrir conversa")
+        return
+      }
+      window.location.href = `/comunicacao?conversa=${data.conversationId}`
+    } catch (err) {
+      alert("Erro de conexão ao abrir conversa.")
+      console.error("[abrirConversa]", err)
+    } finally {
+      setOpeningChat(false)
+    }
+  }
   const [, startTransition] = useTransition()
   const [sheetOpen, setSheetOpen] = useState(false)
 
@@ -98,6 +129,9 @@ export function ContactDetail({ contact }: { contact: Contact }) {
                   {getInitials(contact.name)}
                 </div>
                 <h2 className="font-semibold text-gray-900 text-lg">{contact.name}</h2>
+                {contact.position && (
+                  <p className="text-xs text-gray-400 mt-0.5">{contact.position}</p>
+                )}
                 {contact.company && (
                   <p className="text-sm text-gray-500">{contact.company.name}</p>
                 )}
@@ -117,15 +151,18 @@ export function ContactDetail({ contact }: { contact: Contact }) {
                     <Phone className="w-4 h-4 text-gray-400" /> {contact.phone}
                   </a>
                 )}
-                {contact.whatsapp && (
-                  <a
-                    href={`https://wa.me/${contact.whatsapp.replace(/\D/g, "")}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 text-sm text-gray-600 hover:text-green-600"
+                {(contact.whatsapp || contact.phone) && (
+                  <button
+                    onClick={abrirConversa}
+                    disabled={openingChat}
+                    className="flex items-center gap-2 text-sm text-gray-600 hover:text-green-600 disabled:opacity-50 transition-colors"
                   >
-                    <MessageCircle className="w-4 h-4 text-gray-400" /> {contact.whatsapp}
-                  </a>
+                    {openingChat
+                      ? <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
+                      : <MessageCircle className="w-4 h-4 text-gray-400" />}
+                    {contact.whatsapp || contact.phone}
+                    <span className="text-xs text-green-600 font-medium">Abrir no WPP</span>
+                  </button>
                 )}
               </div>
 
@@ -133,6 +170,13 @@ export function ContactDetail({ contact }: { contact: Contact }) {
                 <div className="mt-4 pt-4 border-t border-gray-100">
                   <p className="text-xs text-gray-400 mb-1">Observações</p>
                   <p className="text-sm text-gray-600">{contact.notes}</p>
+                </div>
+              )}
+
+              {contact.leadSource && (
+                <div className="mt-3 pt-3 border-t border-gray-100">
+                  <p className="text-xs text-gray-400 mb-1">Origem do lead</p>
+                  <p className="text-xs text-gray-600">{contact.leadSource}</p>
                 </div>
               )}
 
@@ -208,7 +252,7 @@ export function ContactDetail({ contact }: { contact: Contact }) {
                 contactId={contact.id}
                 activities={contact.activities.map((a) => ({
                   ...a,
-                  createdAt: a.createdAt.toISOString(),
+                  createdAt: typeof a.createdAt === "string" ? a.createdAt : a.createdAt.toISOString(),
                   user: { ...a.user, name: a.user.name },
                 }))}
                 onRefresh={() => startTransition(() => router.refresh())}

@@ -11,6 +11,8 @@ const schema = z.object({
   cpf: z.string().optional(),
   cnpj: z.string().optional(),
   razaoSocial: z.string().optional(),
+  position: z.string().optional(),
+  leadSource: z.string().optional(),
   creditLimit: z.number().min(0).optional().nullable(),
   status: z.enum(["LEAD", "PROSPECT", "ACTIVE", "INACTIVE", "LOST"]).optional(),
   tags: z.array(z.string()).optional(),

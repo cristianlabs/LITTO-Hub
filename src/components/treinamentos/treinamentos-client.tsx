@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useRef } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
@@ -12,7 +12,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import {
   BookOpen, Video, FileText, Plus, Pencil, Trash2,
   ChevronLeft, CheckCircle2, Circle, Clock, Play, ExternalLink,
-  BarChart2, Eye, EyeOff,
+  BarChart2, Eye, EyeOff, Upload, X, FileIcon,
 } from "lucide-react"
 import type { LmsCategory } from "@prisma/client"
 
@@ -78,6 +78,10 @@ export function TreinamentosClient({ initialCourses, progress: initialProgress, 
   const [deleteCourse, setDeleteCourse] = useState<Course | null>(null)
   const [addLessonOpen, setAddLessonOpen] = useState(false)
   const [deleteLesson, setDeleteLesson] = useState<{ id: string; title: string } | null>(null)
+  const [uploadedFile, setUploadedFile] = useState<{ url: string; name: string } | null>(null)
+  const [uploading, setUploading] = useState(false)
+  const [uploadError, setUploadError] = useState("")
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const [filter, setFilter] = useState<LmsCategory | "ALL">("ALL")
 
   const { register: rC, handleSubmit: hC, reset: resetC, formState: { errors: eC, isSubmitting: sC } } = useForm<CourseData>({
@@ -132,13 +136,34 @@ export function TreinamentosClient({ initialCourses, progress: initialProgress, 
     await refreshCourses()
   }
 
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploading(true)
+    setUploadError("")
+    try {
+      const fd = new FormData()
+      fd.append("file", file)
+      const res = await fetch("/api/treinamentos/upload", { method: "POST", body: fd })
+      const data = await res.json()
+      if (!res.ok) { setUploadError(data.error ?? "Erro ao enviar arquivo"); return }
+      setUploadedFile(data)
+    } finally {
+      setUploading(false)
+      if (fileInputRef.current) fileInputRef.current.value = ""
+    }
+  }
+
   async function onAddLesson(data: LessonData) {
     if (!selectedCourse) return
     await fetch(`/api/treinamentos/cursos/${selectedCourse.id}`, {
       method: "PATCH", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "add_lesson", ...data }),
+      body: JSON.stringify({ action: "add_lesson", ...data, fileUrl: uploadedFile?.url ?? undefined }),
     })
-    setAddLessonOpen(false); resetL(); await refreshCourses()
+    setAddLessonOpen(false)
+    resetL()
+    setUploadedFile(null)
+    await refreshCourses()
   }
 
   async function confirmDeleteLesson() {
@@ -291,12 +316,17 @@ export function TreinamentosClient({ initialCourses, progress: initialProgress, 
                             <Play className="w-3 h-3" /> Assistir vídeo
                           </a>
                         )}
-                        {lesson.fileUrl && (
-                          <a href={lesson.fileUrl} target="_blank" rel="noreferrer"
-                            className="flex items-center gap-1 text-xs text-blue-600 hover:underline">
-                            <ExternalLink className="w-3 h-3" /> Material
-                          </a>
-                        )}
+                        {lesson.fileUrl && (() => {
+                          const isPdf = lesson.fileUrl.endsWith(".pdf")
+                          const isDocx = lesson.fileUrl.endsWith(".docx") || lesson.fileUrl.endsWith(".doc")
+                          const label = isPdf ? "PDF" : isDocx ? "DOCX" : "Material"
+                          return (
+                            <a href={lesson.fileUrl} target="_blank" rel="noreferrer"
+                              className="flex items-center gap-1 text-xs text-blue-600 hover:underline font-medium">
+                              <FileText className="w-3 h-3" /> {label}
+                            </a>
+                          )
+                        })()}
                       </div>
                     </div>
                     {canManage && (
@@ -313,8 +343,8 @@ export function TreinamentosClient({ initialCourses, progress: initialProgress, 
         </div>
 
         {/* Add lesson sheet */}
-        <Sheet open={addLessonOpen} onOpenChange={setAddLessonOpen}>
-          <SheetContent className="sm:max-w-md">
+        <Sheet open={addLessonOpen} onOpenChange={(o) => { setAddLessonOpen(o); if (!o) { resetL(); setUploadedFile(null); setUploadError("") } }}>
+          <SheetContent className="sm:max-w-md overflow-y-auto">
             <SheetHeader className="mb-6"><SheetTitle>Nova Aula</SheetTitle></SheetHeader>
             <form onSubmit={hL(onAddLesson)} className="space-y-4">
               <div className="space-y-1.5">
@@ -324,7 +354,7 @@ export function TreinamentosClient({ initialCourses, progress: initialProgress, 
               </div>
               <div className="space-y-1.5">
                 <Label>Conteúdo / Descrição</Label>
-                <textarea {...rL("content")} rows={4}
+                <textarea {...rL("content")} rows={3}
                   className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring resize-none"
                   placeholder="Descrição ou anotações da aula..." />
               </div>
@@ -332,13 +362,50 @@ export function TreinamentosClient({ initialCourses, progress: initialProgress, 
                 <Label>URL do Vídeo</Label>
                 <Input {...rL("videoUrl")} placeholder="https://youtube.com/..." />
               </div>
+
+              {/* File upload */}
+              <div className="space-y-1.5">
+                <Label>Arquivo (PDF ou DOCX)</Label>
+                {uploadedFile ? (
+                  <div className="flex items-center gap-3 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2.5">
+                    <FileIcon className="w-4 h-4 text-blue-600 shrink-0" />
+                    <span className="text-sm text-blue-800 flex-1 truncate">{uploadedFile.name}</span>
+                    <button type="button" onClick={() => setUploadedFile(null)}
+                      className="text-blue-400 hover:text-blue-700 shrink-0">
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <div>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".pdf,.docx,.doc,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword"
+                      onChange={handleFileChange}
+                      className="hidden"
+                      id="lesson-file-upload"
+                    />
+                    <label
+                      htmlFor="lesson-file-upload"
+                      className={`flex items-center justify-center gap-2 w-full border-2 border-dashed rounded-lg py-4 cursor-pointer transition-colors text-sm
+                        ${uploading ? "border-gray-200 text-gray-400 cursor-wait" : "border-gray-300 text-gray-500 hover:border-blue-400 hover:text-blue-600"}`}
+                    >
+                      <Upload className="w-4 h-4" />
+                      {uploading ? "Enviando..." : "Clique para selecionar PDF ou DOCX"}
+                    </label>
+                    {uploadError && <p className="text-red-500 text-xs mt-1">{uploadError}</p>}
+                    <p className="text-xs text-gray-400 mt-1">Máximo 20 MB</p>
+                  </div>
+                )}
+              </div>
+
               <div className="space-y-1.5">
                 <Label>Duração (minutos)</Label>
                 <Input {...rL("duration")} type="number" min={1} placeholder="Ex: 15" />
               </div>
               <SheetFooter className="pt-4">
-                <Button type="button" variant="outline" onClick={() => setAddLessonOpen(false)}>Cancelar</Button>
-                <Button type="submit" disabled={sL}>{sL ? "Salvando..." : "Adicionar aula"}</Button>
+                <Button type="button" variant="outline" onClick={() => { setAddLessonOpen(false); setUploadedFile(null); setUploadError("") }}>Cancelar</Button>
+                <Button type="submit" disabled={sL || uploading}>{sL ? "Salvando..." : "Adicionar aula"}</Button>
               </SheetFooter>
             </form>
           </SheetContent>

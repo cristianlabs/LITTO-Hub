@@ -30,18 +30,19 @@ interface Conversation {
 interface Props {
   initialInstances: Instance[]
   initialConversations: Conversation[]
+  initialConversaId?: string
 }
 
 type Tab = "chat" | "config"
 type StatusFilter = "" | "OPEN" | "RESOLVED" | "WAITING"
 
-export function ComunicacaoClient({ initialInstances, initialConversations }: Props) {
+export function ComunicacaoClient({ initialInstances, initialConversations, initialConversaId }: Props) {
   const router = useRouter()
   const [, startTransition] = useTransition()
 
   const [instances, setInstances] = useState(initialInstances)
   const [conversations, setConversations] = useState(initialConversations)
-  const [selectedId, setSelectedId] = useState<string | undefined>()
+  const [selectedId, setSelectedId] = useState<string | undefined>(initialConversaId)
   const [tab, setTab] = useState<Tab>("chat")
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("")
   const [showNovaConversa, setShowNovaConversa] = useState(false)
@@ -57,6 +58,15 @@ export function ComunicacaoClient({ initialInstances, initialConversations }: Pr
       setConversations(data)
     }
   }
+
+  // Se veio do CRM com uma conversa específica, garante que está selecionada e na aba chat
+  useEffect(() => {
+    if (initialConversaId) {
+      setSelectedId(initialConversaId)
+      setTab("chat")
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Poll conversation list every 5s to pick up new inbound messages
   useEffect(() => {

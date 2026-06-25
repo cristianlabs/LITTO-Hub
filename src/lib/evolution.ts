@@ -28,7 +28,7 @@ export async function createInstance(name: string, webhookUrl: string) {
       // v1 flat style
       webhook: webhookUrl,
       webhookByEvents: false,
-      webhookBase64: false,
+      webhookBase64: true,
       events: ["MESSAGES_UPSERT", "CONNECTION_UPDATE", "MESSAGES_UPDATE"],
     }),
   })
@@ -44,7 +44,7 @@ export async function setWebhook(instanceName: string, webhookUrl: string) {
       url: webhookUrl,
       enabled: true,
       webhookByEvents: false,
-      webhookBase64: false,
+      webhookBase64: true,
       events: ["MESSAGES_UPSERT", "CONNECTION_UPDATE", "MESSAGES_UPDATE"],
     }),
   })
@@ -58,12 +58,52 @@ export async function getInstanceStatus(instance: string) {
   return evolutionFetch(`/instance/connectionState/${instance}`)
 }
 
+function normalizeNumber(to: string) {
+  return to.replace(/:[0-9]+@.*$/, "").replace(/@.*$/, "").replace(/[^0-9]/g, "")
+}
+
 export async function sendTextMessage(instance: string, to: string, text: string) {
+  const number = normalizeNumber(to)
   return evolutionFetch(`/message/sendText/${instance}`, {
     method: "POST",
+    body: JSON.stringify({ number, textMessage: { text } }),
+  })
+}
+
+export async function sendMediaMessage(
+  instance: string,
+  to: string,
+  mediatype: "image" | "video" | "document" | "audio",
+  mediaBase64: string,
+  caption?: string,
+  fileName?: string,
+  mimetype?: string,
+) {
+  const number = normalizeNumber(to)
+  // Strip data URI prefix — everything up to and including the first comma
+  const base64 = mediaBase64.includes(",") ? mediaBase64.split(",").slice(1).join(",") : mediaBase64
+
+  const defaultNames: Record<string, string> = {
+    image: "image.jpg", video: "video.mp4", document: "file.pdf", audio: "audio.ogg",
+  }
+
+  // Normalize audio mimetype to ogg — Evolution API handles it better than webm
+  const resolvedMimetype = mediatype === "audio"
+    ? (mimetype?.startsWith("audio/") ? mimetype : "audio/ogg")
+    : mimetype
+  const resolvedFileName = fileName ?? defaultNames[mediatype] ?? "file"
+
+  return evolutionFetch(`/message/sendMedia/${instance}`, {
+    method: "POST",
     body: JSON.stringify({
-      number: to,
-      textMessage: { text },
+      number,
+      mediaMessage: {
+        mediatype,
+        media: base64,
+        caption: caption ?? "",
+        fileName: resolvedFileName,
+        ...(resolvedMimetype ? { mimetype: resolvedMimetype } : {}),
+      },
     }),
   })
 }

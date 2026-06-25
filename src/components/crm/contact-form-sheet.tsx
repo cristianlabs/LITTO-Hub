@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { CreditCheckDialog } from "@/components/clientes/credit-check-dialog"
-import { TrendingUp } from "lucide-react"
+import { TrendingUp, Search, X } from "lucide-react"
 
 // ─── Masks ────────────────────────────────────────────────────────────────────
 
@@ -34,13 +34,17 @@ function maskCnpj(v: string) {
 }
 
 function maskPhone(raw: string) {
-  const d = raw.replace(/\D/g, "").slice(0, 11)
-  if (d.length === 0) return ""
-  if (d.length <= 2) return `(${d}`
-  if (d.length <= 6) return `(${d.slice(0, 2)}) ${d.slice(2)}`
-  if (d.length <= 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`
-  // 11 dígitos → celular: (xx) x xxxx-xxxx
-  return `(${d.slice(0, 2)}) ${d.slice(2, 3)} ${d.slice(3, 7)}-${d.slice(7)}`
+  // Keep +55 prefix if present
+  const hasPrefix = raw.startsWith("+55")
+  const stripped = raw.replace(/^\+55\s*/, "")
+  const d = stripped.replace(/\D/g, "").slice(0, 11)
+  let local = ""
+  if (d.length === 0) local = ""
+  else if (d.length <= 2) local = `(${d}`
+  else if (d.length <= 6) local = `(${d.slice(0, 2)}) ${d.slice(2)}`
+  else if (d.length <= 10) local = `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`
+  else local = `(${d.slice(0, 2)}) ${d.slice(2, 3)} ${d.slice(3, 7)}-${d.slice(7)}`
+  return hasPrefix ? `+55 ${local}` : local
 }
 
 // ─── Masked input component ───────────────────────────────────────────────────
@@ -74,17 +78,36 @@ const schema = z.object({
   cpf: z.string().optional(),
   cnpj: z.string().optional(),
   razaoSocial: z.string().optional(),
+  position: z.string().optional(),
+  leadSource: z.string().optional(),
   status: z.enum(["LEAD", "PROSPECT", "ACTIVE", "INACTIVE", "LOST"]),
   notes: z.string().optional(),
 })
 
 type FormData = z.infer<typeof schema>
 
+const LEAD_SOURCES = [
+  { value: "", label: "Não informado" },
+  { value: "ORGANIC", label: "Orgânico" },
+  { value: "REFERRAL", label: "Indicação" },
+  { value: "SOCIAL_MEDIA", label: "Redes sociais" },
+  { value: "PAID_ADS", label: "Anúncio pago" },
+  { value: "EVENT", label: "Evento" },
+  { value: "COLD_OUTREACH", label: "Prospecção ativa" },
+  { value: "OTHER", label: "Outro" },
+]
+
 interface Contact {
   id: string; name: string; email?: string | null
   phone?: string | null; whatsapp?: string | null
   cpf?: string | null; cnpj?: string | null; razaoSocial?: string | null
+  position?: string | null; leadSource?: string | null
   status: FormData["status"]; notes?: string | null
+}
+
+interface ClienteResult {
+  id: string; name: string; email?: string | null; phone?: string | null
+  whatsapp?: string | null; cpf?: string | null; cnpj?: string | null; razaoSocial?: string | null
 }
 
 interface Props {
@@ -92,6 +115,7 @@ interface Props {
   onOpenChange: (open: boolean) => void
   contact?: Contact
   onSaved: () => void
+  defaultStatus?: FormData["status"]
 }
 
 const STATUS_OPTIONS = [
@@ -102,23 +126,29 @@ const STATUS_OPTIONS = [
   { value: "LOST", label: "Perdido" },
 ]
 
-export function ContactFormSheet({ open, onOpenChange, contact, onSaved }: Props) {
+export function ContactFormSheet({ open, onOpenChange, contact, onSaved, defaultStatus = "LEAD" }: Props) {
   const isEdit = !!contact
 
-  // Controlled values for masked inputs
-  const [phone, setPhone] = useState("")
-  const [whatsapp, setWhatsapp] = useState("")
+  const [phone, setPhone] = useState("+55 ")
+  const [whatsapp, setWhatsapp] = useState("+55 ")
   const [cpfVal, setCpfVal] = useState("")
   const [cnpjVal, setCnpjVal] = useState("")
   const [creditDialog, setCreditDialog] = useState(false)
   const [creditLimit, setCreditLimit] = useState<number | null>(null)
+
+  // Cliente search
+  const [clienteSearch, setClienteSearch] = useState("")
+  const [clienteResults, setClienteResults] = useState<ClienteResult[]>([])
+  const [clienteSearching, setClienteSearching] = useState(false)
+  const [showClienteDropdown, setShowClienteDropdown] = useState(false)
+  const searchDebounce = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const {
     register, handleSubmit, reset, watch, setValue,
     formState: { errors, isSubmitting },
   } = useForm<FormData>({
     resolver: zodResolver(schema) as never,
-    defaultValues: { status: "LEAD", docType: "cpf" },
+    defaultValues: { status: defaultStatus, docType: "cpf" },
   })
 
   const docType = watch("docType")
@@ -135,31 +165,71 @@ export function ContactFormSheet({ open, onOpenChange, contact, onSaved }: Props
         cpf: contact.cpf ?? "",
         cnpj: contact.cnpj ?? "",
         razaoSocial: contact.razaoSocial ?? "",
+        position: contact.position ?? "",
+        leadSource: contact.leadSource ?? "",
         status: contact.status,
         notes: contact.notes ?? "",
       })
-      setPhone(contact.phone ?? "")
-      setWhatsapp(contact.whatsapp ?? "")
+      setPhone(contact.phone ?? "+55 ")
+      setWhatsapp(contact.whatsapp ?? "+55 ")
       setCpfVal(contact.cpf ?? "")
       setCnpjVal(contact.cnpj ?? "")
     } else {
-      reset({ status: "LEAD", docType: "cpf" })
-      setPhone(""); setWhatsapp(""); setCpfVal(""); setCnpjVal("")
+      reset({ status: defaultStatus, docType: "cpf" })
+      setPhone("+55 "); setWhatsapp("+55 "); setCpfVal(""); setCnpjVal("")
+      setClienteSearch(""); setClienteResults([])
     }
-  }, [open, contact, reset])
+  }, [open, contact, reset, defaultStatus])
+
+  function handleClienteSearchChange(q: string) {
+    setClienteSearch(q)
+    setShowClienteDropdown(true)
+    if (searchDebounce.current) clearTimeout(searchDebounce.current)
+    if (!q.trim()) { setClienteResults([]); return }
+    searchDebounce.current = setTimeout(async () => {
+      setClienteSearching(true)
+      try {
+        const res = await fetch(`/api/clientes?q=${encodeURIComponent(q)}`)
+        if (res.ok) setClienteResults(await res.json())
+      } finally { setClienteSearching(false) }
+    }, 300)
+  }
+
+  function importarCliente(c: ClienteResult) {
+    const hasCnpj = !!c.cnpj
+    const dt = hasCnpj ? "cnpj" : "cpf"
+    reset({
+      name: c.name,
+      email: c.email ?? "",
+      docType: dt,
+      cpf: c.cpf ?? "",
+      cnpj: c.cnpj ?? "",
+      razaoSocial: c.razaoSocial ?? "",
+      status: defaultStatus,
+    })
+    setPhone(maskPhone(c.phone ?? ""))
+    setWhatsapp(maskPhone(c.whatsapp ?? ""))
+    setCpfVal(c.cpf ? maskCpf(c.cpf) : "")
+    setCnpjVal(c.cnpj ? maskCnpj(c.cnpj) : "")
+    setClienteSearch("")
+    setClienteResults([])
+    setShowClienteDropdown(false)
+  }
 
   async function onSubmit(data: FormData) {
     const payload = {
       name: data.name,
-      email: data.email || null,
-      phone: phone || null,
-      whatsapp: whatsapp || null,
-      cpf: data.docType === "cpf" ? cpfVal || null : null,
-      cnpj: data.docType === "cnpj" ? cnpjVal || null : null,
-      razaoSocial: data.docType === "cnpj" ? (data.razaoSocial || null) : null,
+      email: data.email || undefined,
+      phone: phone || undefined,
+      whatsapp: whatsapp || undefined,
+      cpf: data.docType === "cpf" ? cpfVal || undefined : undefined,
+      cnpj: data.docType === "cnpj" ? cnpjVal || undefined : undefined,
+      razaoSocial: data.docType === "cnpj" ? (data.razaoSocial || undefined) : undefined,
+      position: data.position || undefined,
+      leadSource: data.leadSource || undefined,
       creditLimit: creditLimit ?? undefined,
       status: data.status,
-      notes: data.notes || null,
+      notes: data.notes || undefined,
     }
 
     const url = isEdit ? `/api/crm/contatos/${contact!.id}` : "/api/crm/contatos"
@@ -180,6 +250,45 @@ export function ContactFormSheet({ open, onOpenChange, contact, onSaved }: Props
         </SheetHeader>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+          {/* Importar de cliente existente (apenas criação) */}
+          {!isEdit && (
+            <div className="relative">
+              <Label className="text-xs text-gray-500">Importar dados de cliente existente</Label>
+              <div className="relative mt-1.5">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                <Input
+                  value={clienteSearch}
+                  onChange={(e) => handleClienteSearchChange(e.target.value)}
+                  onFocus={() => clienteSearch && setShowClienteDropdown(true)}
+                  placeholder="Buscar por nome, CPF ou CNPJ..."
+                  className="pl-8 h-9 text-sm"
+                />
+                {clienteSearch && (
+                  <button type="button" onClick={() => { setClienteSearch(""); setClienteResults([]); setShowClienteDropdown(false) }}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+              {showClienteDropdown && (clienteResults.length > 0 || clienteSearching) && (
+                <div className="absolute z-50 top-full mt-1 left-0 right-0 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                  {clienteSearching && <p className="px-3 py-2 text-xs text-gray-400">Buscando...</p>}
+                  {clienteResults.map((c) => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => importarCliente(c)}
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 border-b border-gray-50 last:border-0"
+                    >
+                      <p className="font-medium text-gray-900">{c.name}</p>
+                      <p className="text-xs text-gray-400">{c.cnpj ?? c.cpf ?? c.phone ?? ""}</p>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Nome */}
           <div className="space-y-1.5">
             <Label htmlFor="name">Nome *</Label>
@@ -203,6 +312,25 @@ export function ContactFormSheet({ open, onOpenChange, contact, onSaved }: Props
             <div className="space-y-1.5">
               <Label>WhatsApp</Label>
               <MaskedInput mask={maskPhone} value={whatsapp} onChange={setWhatsapp} placeholder="(11) 9 1234-5678" />
+            </div>
+          </div>
+
+          {/* Cargo + Origem */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label>Cargo</Label>
+              <Input {...register("position")} placeholder="Ex: Diretor, Gerente..." />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Origem do lead</Label>
+              <select
+                {...register("leadSource")}
+                className="w-full h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+              >
+                {LEAD_SOURCES.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
             </div>
           </div>
 

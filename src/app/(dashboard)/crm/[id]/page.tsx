@@ -27,13 +27,33 @@ export default async function ContactPage({ params }: { params: Promise<{ id: st
 
   if (!contact) notFound()
 
+  // Serialize Prisma Decimal → number so Client Components don't blow up
+  const serialized = {
+    ...contact,
+    deals: contact.deals.map((d) => ({
+      ...d,
+      value: d.value != null ? parseFloat(d.value.toString()) : null,
+      createdAt: d.createdAt.toISOString(),
+      updatedAt: d.updatedAt.toISOString(),
+      expectedClose: d.expectedClose?.toISOString() ?? null,
+      closedAt: d.closedAt?.toISOString() ?? null,
+    })),
+    activities: contact.activities.map((a) => ({
+      ...a,
+      createdAt: a.createdAt.toISOString(),
+      dueDate: a.dueDate?.toISOString() ?? null,
+    })),
+    createdAt: contact.createdAt.toISOString(),
+    updatedAt: contact.updatedAt.toISOString(),
+  }
+
   return (
     <div>
       <Header
         title={contact.name}
         subtitle={contact.company?.name ?? "Contato sem empresa"}
       />
-      <ContactDetail contact={contact} />
+      <ContactDetail contact={serialized} />
     </div>
   )
 }

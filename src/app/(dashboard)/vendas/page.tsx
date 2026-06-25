@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic"
+
 import { auth } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { db } from "@/lib/db"
@@ -8,18 +10,32 @@ export default async function VendasPage() {
   const session = await auth()
   if (!session) redirect("/login")
 
-  const [rawDeals, sellers] = await Promise.all([
+  const [rawDeals, sellers, pipelines, contacts, products] = await Promise.all([
     db.deal.findMany({
       include: {
         contact: { select: { id: true, name: true } },
         pipeline: { select: { id: true, name: true, color: true } },
         seller: { select: { id: true, name: true } },
+        items: {
+          include: { product: { select: { id: true, name: true, sku: true, unit: true } } },
+        },
       },
       orderBy: { createdAt: "desc" },
     }),
     db.user.findMany({
       where: { active: true },
       select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    }),
+    db.pipeline.findMany({ orderBy: { order: "asc" } }),
+    db.contact.findMany({
+      where: { status: { in: ["LEAD", "PROSPECT", "ACTIVE"] } },
+      select: { id: true, name: true, phone: true, whatsapp: true },
+      orderBy: { name: "asc" },
+    }),
+    db.product.findMany({
+      where: { active: true },
+      select: { id: true, name: true, sku: true, salePrice: true, currentStock: true, unit: true },
       orderBy: { name: "asc" },
     }),
   ])
@@ -35,12 +51,19 @@ export default async function VendasPage() {
     contact: d.contact,
     pipeline: d.pipeline,
     seller: d.seller,
+    items: d.items.map((i) => ({ ...i, unitPrice: Number(i.unitPrice) })),
   }))
 
   return (
     <div>
       <Header title="Vendas" subtitle="Gestão de negócios e performance comercial" />
-      <VendasClient initialDeals={deals} sellers={sellers} />
+      <VendasClient
+        initialDeals={deals}
+        sellers={sellers}
+        pipelines={pipelines}
+        contacts={contacts}
+        products={products.map((p) => ({ ...p, salePrice: Number(p.salePrice) }))}
+      />
     </div>
   )
 }

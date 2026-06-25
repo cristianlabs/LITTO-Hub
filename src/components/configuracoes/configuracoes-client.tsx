@@ -5,18 +5,27 @@ import { PipelineManager } from "./pipeline-manager"
 import { CategoryManager } from "./category-manager"
 import { SupplierManager } from "./supplier-manager"
 import { AlertsConfig } from "./alerts-config"
-import { Settings, GitMerge, Tag, Truck, Bell } from "lucide-react"
+import { PermissionsManager } from "./permissions-manager"
+import { RelatorioWhatsappConfigComponent } from "./relatorio-whatsapp-config"
+import { Settings, GitMerge, Tag, Truck, Bell, ShieldCheck, MessageCircle } from "lucide-react"
+import type { Role } from "@prisma/client"
+import type { RelatorioWhatsappConfig } from "@/app/api/configuracoes/relatorio-whatsapp/route"
 
 interface Pipeline { id: string; name: string; color: string; order: number; _count: { deals: number } }
 interface Category { id: string; name: string; color: string; _count: { products: number } }
 interface Supplier { id: string; name: string; cnpj?: string | null; email?: string | null; phone?: string | null; _count: { products: number } }
 interface AlertConfig { email: boolean; push: boolean; inApp: boolean }
+interface Instance { id: string; name: string; connected: boolean }
 
 interface Props {
   pipelines: Pipeline[]
   categories: Category[]
   suppliers: Supplier[]
   alertConfig: AlertConfig
+  modulePermissions: Record<string, Role[]>
+  isOwner: boolean
+  relatorioConfig: RelatorioWhatsappConfig
+  instances: Instance[]
 }
 
 const tabs = [
@@ -24,9 +33,11 @@ const tabs = [
   { key: "categories", label: "Categorias", icon: Tag },
   { key: "suppliers", label: "Fornecedores", icon: Truck },
   { key: "alerts", label: "Alertas de Estoque", icon: Bell },
+  { key: "permissions", label: "Permissões", icon: ShieldCheck },
+  { key: "relatorio", label: "Relatório WhatsApp", icon: MessageCircle },
 ]
 
-export function ConfiguracoesClient({ pipelines, categories, suppliers, alertConfig }: Props) {
+export function ConfiguracoesClient({ pipelines, categories, suppliers, alertConfig, modulePermissions, isOwner, relatorioConfig, instances }: Props) {
   const [tab, setTab] = useState("pipelines")
 
   return (
@@ -37,12 +48,12 @@ export function ConfiguracoesClient({ pipelines, categories, suppliers, alertCon
         </div>
         <div>
           <h2 className="font-semibold text-gray-900">Configurações do Sistema</h2>
-          <p className="text-sm text-gray-500">Gerencie pipelines, categorias, fornecedores e alertas</p>
+          <p className="text-sm text-gray-500">Gerencie pipelines, categorias, fornecedores, alertas, permissões e relatórios</p>
         </div>
       </div>
 
       {/* Tab bar */}
-      <div className="flex gap-1 bg-gray-100 p-1 rounded-xl mb-6 w-fit">
+      <div className="flex flex-wrap gap-1 bg-gray-100 p-1 rounded-xl mb-6 w-fit">
         {tabs.map(({ key, label, icon: Icon }) => (
           <button
             key={key}
@@ -61,6 +72,8 @@ export function ConfiguracoesClient({ pipelines, categories, suppliers, alertCon
       {tab === "categories" && <CategoryManager initialCategories={categories} />}
       {tab === "suppliers" && <SupplierManager initialSuppliers={suppliers} />}
       {tab === "alerts" && <AlertsConfig initialConfig={alertConfig} />}
+      {tab === "permissions" && <PermissionsManager initialPermissions={modulePermissions} isOwner={isOwner} />}
+      {tab === "relatorio" && <RelatorioWhatsappConfigComponent initialConfig={relatorioConfig} instances={instances} />}
     </div>
   )
 }

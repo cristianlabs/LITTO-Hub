@@ -59,7 +59,17 @@ export async function DELETE(req: NextRequest) {
     await deleteInstance(instance.name)
   } catch {}
 
+  // Delete in dependency order: messages → conversations → instance
+  const conversations = await db.conversation.findMany({
+    where: { instanceId: id },
+    select: { id: true },
+  })
+  const conversationIds = conversations.map((c) => c.id)
+
+  await db.message.deleteMany({ where: { conversationId: { in: conversationIds } } })
+  await db.conversation.deleteMany({ where: { instanceId: id } })
   await db.whatsAppInstance.delete({ where: { id } })
+
   return NextResponse.json({ success: true })
 }
 

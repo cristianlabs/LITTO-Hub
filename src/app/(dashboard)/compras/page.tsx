@@ -10,7 +10,7 @@ export default async function ComprasPage() {
   if (!session) redirect("/login")
   if (!hasMinRole(session.user.role, "MANAGER")) redirect("/")
 
-  const [rawOrders, pendingRequisitions] = await Promise.all([
+  const [rawOrders, pendingRequisitions, rawSuppliers] = await Promise.all([
     db.purchaseOrder.findMany({
       orderBy: { createdAt: "desc" },
       include: {
@@ -19,15 +19,14 @@ export default async function ComprasPage() {
         items: true,
       },
     }),
-    // Approved PURCHASE requisitions not yet linked to an order
     db.requisition.findMany({
-      where: {
-        category: "PURCHASE",
-        status: "APPROVED",
-        purchaseOrder: null,
-      },
+      where: { category: "PURCHASE", status: "APPROVED", purchaseOrder: null },
       select: { id: true, title: true, status: true },
       orderBy: { createdAt: "desc" },
+    }),
+    db.supplier.findMany({
+      orderBy: { name: "asc" },
+      include: { _count: { select: { products: true } } },
     }),
   ])
 
@@ -40,12 +39,22 @@ export default async function ComprasPage() {
     items: o.items.map((i) => ({ ...i, unitPrice: Number(i.unitPrice) })),
   }))
 
+  // Match purchase orders to suppliers by the `supplier` name field (case-insensitive)
+  const suppliers = rawSuppliers.map((s) => ({
+    id: s.id, name: s.name, cnpj: s.cnpj, email: s.email, phone: s.phone, contact: s.contact,
+    _count: s._count,
+    purchaseOrders: rawOrders
+      .filter((o) => o.supplier?.toLowerCase() === s.name.toLowerCase())
+      .map((o) => ({ id: o.id, number: o.number, title: o.title, totalValue: Number(o.totalValue), status: o.status })),
+  }))
+
   return (
     <div>
-      <Header title="Compras" subtitle="Pedidos de compra e requisições aprovadas" />
+      <Header title="Compras" subtitle="Pedidos de compra e fornecedores" />
       <ComprasClient
         initialOrders={orders}
         pendingRequisitions={pendingRequisitions}
+        suppliers={suppliers}
         canManage={hasMinRole(session.user.role, "MANAGER")}
       />
     </div>

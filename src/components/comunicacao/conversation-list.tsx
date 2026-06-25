@@ -6,6 +6,13 @@ import { Search } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { useState } from "react"
 
+function formatJid(jid: string): string {
+  // Group chat
+  if (jid.includes("@g.us")) return "Grupo"
+  // Strip device suffix (:XX) and domain (@s.whatsapp.net, @c.us, @lid, etc.)
+  return jid.replace(/:[0-9]+@.*$/, "").replace(/@.*$/, "").replace(/[^0-9+]/g, "")
+}
+
 interface Conversation {
   id: string
   remoteJid: string
@@ -34,7 +41,7 @@ export function ConversationList({ conversations, selectedId, onSelect }: Props)
 
   const filtered = conversations.filter((c) => {
     if (!q) return true
-    const name = c.contact?.name ?? c.remoteJid
+    const name = c.contact?.name ?? formatJid(c.remoteJid)
     return name.toLowerCase().includes(q.toLowerCase())
   })
 
@@ -59,7 +66,7 @@ export function ConversationList({ conversations, selectedId, onSelect }: Props)
           </div>
         )}
         {filtered.map((conv) => {
-          const name = conv.contact?.name ?? conv.remoteJid.replace(/@.*$/, "")
+          const name = conv.contact?.name ?? formatJid(conv.remoteJid)
           const isSelected = conv.id === selectedId
 
           return (

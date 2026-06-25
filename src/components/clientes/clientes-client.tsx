@@ -6,10 +6,11 @@ import Link from "next/link"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { CreditCheckDialog } from "./credit-check-dialog"
+import { ContactFormSheet } from "@/components/crm/contact-form-sheet"
 import { formatCurrency, getInitials, formatDate } from "@/lib/utils"
 import {
   Search, TrendingUp, ExternalLink, Building2,
-  Phone, Mail, DollarSign, Activity, CreditCard,
+  Phone, Mail, DollarSign, Activity, CreditCard, Plus,
 } from "lucide-react"
 
 interface Deal { value: { toString(): string }; status: string }
@@ -41,6 +42,7 @@ export function ClientesClient({ clients, currentQ }: Props) {
   const [search, setSearch] = useState(currentQ)
   const [creditCnpj, setCreditCnpj] = useState<string | null>(null)
   const [savingId, setSavingId] = useState<string | null>(null)
+  const [showNovoCliente, setShowNovoCliente] = useState(false)
 
   const refresh = useCallback(() => startTransition(() => router.refresh()), [router])
 
@@ -95,9 +97,14 @@ export function ClientesClient({ clients, currentQ }: Props) {
             value={search} onChange={(e) => setSearch(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && applySearch(search)} />
         </div>
-        <Link href="/crm" className="flex items-center gap-1.5 text-sm text-blue-600 hover:underline">
-          <ExternalLink className="w-4 h-4" /> Gerenciar no CRM
-        </Link>
+        <div className="flex items-center gap-2">
+          <Button size="sm" onClick={() => setShowNovoCliente(true)} className="h-9">
+            <Plus className="w-4 h-4 mr-1.5" /> Novo cliente
+          </Button>
+          <Link href="/crm" className="flex items-center gap-1.5 text-sm text-blue-600 hover:underline">
+            <ExternalLink className="w-4 h-4" /> Gerenciar no CRM
+          </Link>
+        </div>
       </div>
 
       {/* Table */}
@@ -195,6 +202,13 @@ export function ClientesClient({ clients, currentQ }: Props) {
           </table>
         </div>
       )}
+
+      <ContactFormSheet
+        open={showNovoCliente}
+        onOpenChange={setShowNovoCliente}
+        defaultStatus="ACTIVE"
+        onSaved={() => { setShowNovoCliente(false); refresh() }}
+      />
 
       {/* Credit check dialog */}
       {creditCnpj && (() => {
