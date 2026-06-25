@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic"
+
 import { auth } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { db } from "@/lib/db"
@@ -10,17 +12,20 @@ export default async function ColaboradoresPage() {
   if (!session) redirect("/login")
   if (!hasMinRole(session.user.role, "MANAGER")) redirect("/")
 
-  const users = await db.user.findMany({
-    orderBy: { name: "asc" },
-    select: {
-      id: true, name: true, email: true, role: true,
-      active: true, createdAt: true,
-      _count: { select: { activities: true, deals: true } },
-    },
-  })
+  const [users, customRoles] = await Promise.all([
+    db.user.findMany({
+      orderBy: { name: "asc" },
+      select: {
+        id: true, name: true, email: true, role: true,
+        active: true, createdAt: true,
+        customRole: { select: { id: true, name: true, color: true, baseRole: true } },
+        _count: { select: { activities: true, deals: true } },
+      },
+    }),
+    db.customRole.findMany({ orderBy: { name: "asc" } }),
+  ])
 
-  type UserRaw = typeof users[number]
-  const serialized = users.map((u: UserRaw) => ({
+  const serialized = users.map((u) => ({
     ...u,
     createdAt: u.createdAt.toISOString(),
   }))
@@ -30,6 +35,7 @@ export default async function ColaboradoresPage() {
       <Header title="Colaboradores" subtitle="Gestão de equipe e permissões de acesso" />
       <ColaboradoresClient
         users={serialized}
+        customRoles={customRoles}
         currentUserId={session.user.id}
         currentUserRole={session.user.role}
       />

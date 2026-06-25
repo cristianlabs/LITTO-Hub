@@ -8,6 +8,7 @@ import { hasMinRole } from "@/lib/permissions"
 const schema = z.object({
   name: z.string().min(1).optional(),
   role: z.enum(["OWNER", "HEAD_LEADER", "MANAGER", "SELLER", "EMPLOYEE"]).optional(),
+  customRoleId: z.string().nullable().optional(),
   active: z.boolean().optional(),
   password: z.string().min(6).optional(),
 })
@@ -15,9 +16,8 @@ const schema = z.object({
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  if (!hasMinRole(session.user.role, "HEAD_LEADER")) {
+  if (!hasMinRole(session.user.role, "HEAD_LEADER"))
     return NextResponse.json({ error: "Sem permissão" }, { status: 403 })
-  }
 
   const { id } = await params
   const body = await req.json()
@@ -26,14 +26,31 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   const data: Record<string, unknown> = {}
   if (parsed.data.name) data.name = parsed.data.name
-  if (parsed.data.role) data.role = parsed.data.role
   if (parsed.data.active !== undefined) data.active = parsed.data.active
   if (parsed.data.password) data.password = await bcrypt.hash(parsed.data.password, 12)
+
+  // Handle customRoleId — if set, derive role automatically from customRole.baseRole
+  if ("customRoleId" in parsed.data) {
+    const cid = parsed.data.customRoleId ?? null
+    data.customRoleId = cid
+    if (cid) {
+      const cr = await db.customRole.findUnique({ where: { id: cid } })
+      if (cr) data.role = cr.baseRole
+    } else if (parsed.data.role) {
+      data.role = parsed.data.role
+    }
+  } else if (parsed.data.role) {
+    data.role = parsed.data.role
+  }
 
   const user = await db.user.update({
     where: { id },
     data,
-    select: { id: true, name: true, email: true, role: true, active: true, createdAt: true },
+    select: {
+      id: true, name: true, email: true, role: true,
+      active: true, createdAt: true,
+      customRole: { select: { id: true, name: true, color: true, baseRole: true } },
+    },
   })
 
   await db.auditLog.create({
@@ -46,16 +63,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  if (!hasMinRole(session.user.role, "OWNER")) {
+  if (!hasMinRole(session.user.role, "OWNER"))
     return NextResponse.json({ error: "Apenas o dono pode remover usuários" }, { status: 403 })
-  }
 
   const { id } = await params
-  if (id === session.user.id) {
+  if (id === session.user.id)
     return NextResponse.json({ error: "Não é possível remover sua própria conta" }, { status: 422 })
-  }
 
-  // Soft delete — deactivate
   const user = await db.user.update({
     where: { id },
     data: { active: false },
