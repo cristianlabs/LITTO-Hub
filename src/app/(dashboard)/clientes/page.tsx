@@ -35,7 +35,8 @@ export default async function ClientesPage({
   })
 
   // Serialize Decimal fields
-  const serialized = clients.map((c) => ({
+  type ClientRaw = typeof clients[number]
+  const serialized = clients.map((c: ClientRaw) => ({
     ...c,
     creditLimit: c.creditLimit ? Number(c.creditLimit) : null,
     createdAt: c.createdAt.toISOString(),
