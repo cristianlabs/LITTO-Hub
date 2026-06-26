@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "cron": "node scripts/cron.mjs",
-    "build": "next build",
+    "build": "prisma db push --accept-data-loss && next build",
     "postinstall": "prisma generate",
     "start": "next start",
     "db:generate": "dotenv -e .env -- prisma generate",

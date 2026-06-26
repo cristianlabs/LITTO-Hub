@@ -19,7 +19,7 @@ export async function GET() {
   const statuses = await db.customRequisitionStatus.findMany({
     orderBy: [{ order: "asc" }, { name: "asc" }],
     include: { _count: { select: { requisitions: true } } },
-  })
+  }).catch(() => [])
   return NextResponse.json(statuses)
 }
 

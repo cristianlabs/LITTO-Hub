@@ -18,8 +18,16 @@ export default async function RequisicoesPage() {
         customStatus: true,
         _count: { select: { comments: true } },
       },
-    }),
-    db.customRequisitionStatus.findMany({ orderBy: [{ order: "asc" }, { name: "asc" }] }),
+    }).catch(() =>
+      db.requisition.findMany({
+        orderBy: { createdAt: "desc" },
+        include: {
+          user: { select: { id: true, name: true } },
+          _count: { select: { comments: true } },
+        },
+      })
+    ),
+    db.customRequisitionStatus.findMany({ orderBy: [{ order: "asc" }, { name: "asc" }] }).catch(() => []),
   ])
 
   const serialized = requisitions.map((r) => ({
