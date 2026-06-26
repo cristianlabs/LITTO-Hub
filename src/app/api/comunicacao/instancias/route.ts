@@ -3,6 +3,7 @@ import { db } from "@/lib/db"
 import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 import { createInstance, getInstanceStatus, deleteInstance, getInstanceQR, setWebhook } from "@/lib/evolution"
+import { hasMinRole } from "@/lib/permissions"
 
 const createSchema = z.object({ name: z.string().min(1) })
 
@@ -17,6 +18,8 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  if (!hasMinRole(session.user.role, "MANAGER"))
+    return NextResponse.json({ error: "Sem permissão para criar instâncias" }, { status: 403 })
 
   const body = await req.json()
   const parsed = createSchema.safeParse(body)

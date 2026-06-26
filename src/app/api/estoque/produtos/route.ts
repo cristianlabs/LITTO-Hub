@@ -38,13 +38,17 @@ export async function GET(req: NextRequest) {
     where: {
       active: true,
       ...(filter === "zero" ? { currentStock: 0 } : {}),
-      ...(filter === "min" ? { currentStock: { gt: 0 } } : {}),
+      ...(filter === "min" ? { currentStock: { gt: 0 }, minStock: { gt: 0 } } : {}),
     },
     include: { category: true, supplier: true },
     orderBy: { name: "asc" },
   })
 
-  return NextResponse.json(products)
+  return NextResponse.json(products.map((p) => ({
+    ...p,
+    costPrice: p.costPrice != null ? Number(p.costPrice) : null,
+    salePrice: p.salePrice != null ? Number(p.salePrice) : null,
+  })))
 }
 
 export async function POST(req: NextRequest) {
@@ -67,6 +71,9 @@ export async function POST(req: NextRequest) {
 
     const delta = type === "OUT" ? -quantity : quantity
     const newStock = product.currentStock + delta
+
+    if (newStock < 0)
+      return NextResponse.json({ error: "Estoque insuficiente para esta saída" }, { status: 422 })
 
     await db.$transaction(async (tx) => {
       await tx.stockMovement.create({

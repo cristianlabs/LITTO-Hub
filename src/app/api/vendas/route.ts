@@ -145,22 +145,32 @@ export async function PATCH(req: NextRequest) {
 
   // When deal is won for the first time, deduct stock for each item
   if (status === "WON" && prevDeal?.status !== "WON" && deal.items.length > 0) {
-    await Promise.all(deal.items.map(async (item) => {
-      await db.product.update({
-        where: { id: item.productId },
-        data: { currentStock: { decrement: item.quantity } },
-      })
-      await db.stockMovement.create({
-        data: {
-          productId: item.productId,
-          type: "OUT",
-          quantity: item.quantity,
-          reason: `Venda: ${deal.title}`,
-          reference: deal.id,
-          cost: item.unitPrice,
-        },
-      })
-    }))
+    await db.$transaction(async (tx) => {
+      for (const item of deal.items) {
+        const product = await tx.product.findUnique({
+          where: { id: item.productId },
+          select: { currentStock: true, name: true },
+        })
+        if (!product) continue
+        if (product.currentStock < item.quantity) {
+          throw new Error(`Estoque insuficiente para "${product.name}" (disponível: ${product.currentStock})`)
+        }
+        await tx.product.update({
+          where: { id: item.productId },
+          data: { currentStock: { decrement: item.quantity } },
+        })
+        await tx.stockMovement.create({
+          data: {
+            productId: item.productId,
+            type: "OUT",
+            quantity: item.quantity,
+            reason: `Venda: ${deal.title}`,
+            reference: deal.id,
+            cost: item.unitPrice,
+          },
+        })
+      }
+    })
   }
 
   await db.auditLog.create({

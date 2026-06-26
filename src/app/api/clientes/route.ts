@@ -2,6 +2,7 @@ import { auth } from "@/lib/auth"
 import { db } from "@/lib/db"
 import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
+import { hasMinRole } from "@/lib/permissions"
 
 const schema = z.object({
   creditLimit: z.number().min(0).optional(),
@@ -40,8 +41,12 @@ export async function GET(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  if (!hasMinRole(session.user.role, "MANAGER"))
+    return NextResponse.json({ error: "Sem permissão" }, { status: 403 })
 
   const { id, ...data } = await req.json()
+  if (!id) return NextResponse.json({ error: "id obrigatório" }, { status: 400 })
+
   const parsed = schema.safeParse(data)
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
 

@@ -54,27 +54,26 @@ export async function POST(req: NextRequest) {
 
   const totalValue = parsed.data.items.reduce((s, i) => s + i.quantity * i.unitPrice, 0)
 
-  // Auto-increment order number
-  const count = await db.purchaseOrder.count()
-  const number = `PC-${String(count + 1).padStart(4, "0")}`
-
-  const order = await db.purchaseOrder.create({
-    data: {
-      number,
-      title: parsed.data.title,
-      supplier: parsed.data.supplier,
-      notes: parsed.data.notes,
-      totalValue,
-      createdById: session.user.id,
-      requisitionId: parsed.data.requisitionId || null,
-      items: {
-        create: parsed.data.items,
+  // Generate unique order number inside a transaction to avoid race conditions
+  const order = await db.$transaction(async (tx) => {
+    const count = await tx.purchaseOrder.count()
+    const number = `PC-${String(count + 1).padStart(4, "0")}`
+    return tx.purchaseOrder.create({
+      data: {
+        number,
+        title: parsed.data.title,
+        supplier: parsed.data.supplier,
+        notes: parsed.data.notes,
+        totalValue,
+        createdById: session.user.id,
+        requisitionId: parsed.data.requisitionId || null,
+        items: { create: parsed.data.items },
       },
-    },
-    include: {
-      createdBy: { select: { id: true, name: true } },
-      items: true,
-    },
+      include: {
+        createdBy: { select: { id: true, name: true } },
+        items: true,
+      },
+    })
   })
 
   // Mark requisition as DONE if linked

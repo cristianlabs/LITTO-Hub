@@ -57,6 +57,14 @@ export async function PATCH(req: NextRequest) {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const { id, completed } = await req.json()
+
+  const existing = await db.activity.findUnique({ where: { id }, select: { userId: true } })
+  if (!existing) return NextResponse.json({ error: "Não encontrado" }, { status: 404 })
+
+  const isPrivileged = session.user.role === "OWNER" || session.user.role === "HEAD_LEADER" || session.user.role === "MANAGER"
+  if (existing.userId !== session.user.id && !isPrivileged)
+    return NextResponse.json({ error: "Sem permissão" }, { status: 403 })
+
   const activity = await db.activity.update({
     where: { id },
     data: { completed },

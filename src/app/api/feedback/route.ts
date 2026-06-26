@@ -5,7 +5,8 @@ import { z } from "zod"
 import crypto from "crypto"
 
 function getKey() {
-  const raw = process.env.FEEDBACK_ENCRYPTION_KEY ?? "default-key-32-chars-padded-here"
+  const raw = process.env.FEEDBACK_ENCRYPTION_KEY
+  if (!raw) throw new Error("FEEDBACK_ENCRYPTION_KEY env var não configurada")
   return Buffer.from(raw.padEnd(32, "0").slice(0, 32))
 }
 

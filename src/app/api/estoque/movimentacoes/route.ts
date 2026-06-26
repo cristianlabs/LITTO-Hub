@@ -27,7 +27,10 @@ export async function GET(req: NextRequest) {
     take: limit,
   })
 
-  return NextResponse.json(movements)
+  return NextResponse.json(movements.map((m) => ({
+    ...m,
+    cost: m.cost != null ? Number(m.cost) : null,
+  })))
 }
 
 export async function POST(req: NextRequest) {

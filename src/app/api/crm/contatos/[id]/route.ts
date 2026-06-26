@@ -2,6 +2,7 @@ import { auth } from "@/lib/auth"
 import { db } from "@/lib/db"
 import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
+import { hasMinRole } from "@/lib/permissions"
 
 const schema = z.object({
   name: z.string().min(1).optional(),
@@ -66,6 +67,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  if (!hasMinRole(session.user.role, "MANAGER"))
+    return NextResponse.json({ error: "Sem permissão para excluir contatos" }, { status: 403 })
 
   const { id } = await params
   await db.contact.delete({ where: { id } })
