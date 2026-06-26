@@ -52,7 +52,7 @@ export function ComunicacaoClient({ initialInstances, initialConversations, init
 
   async function refreshConversations() {
     const url = statusFilter ? `/api/comunicacao/conversas?status=${statusFilter}` : "/api/comunicacao/conversas"
-    const res = await fetch(url)
+    const res = await fetch(url, { cache: "no-store" })
     if (res.ok) {
       const data = await res.json()
       setConversations(data)

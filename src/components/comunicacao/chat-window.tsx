@@ -128,7 +128,9 @@ export function ChatWindow({ conversation, onStatusChange }: Props) {
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const fetchMessages = useCallback(async () => {
-    const res = await fetch(`/api/comunicacao/conversas/${conversation.id}/mensagens`)
+    const res = await fetch(`/api/comunicacao/conversas/${conversation.id}/mensagens`, {
+      cache: "no-store",
+    })
     if (res.ok) setMessages(await res.json())
   }, [conversation.id])
 

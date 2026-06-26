@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic"
+
 import { auth } from "@/lib/auth"
 import { db } from "@/lib/db"
 import { NextRequest, NextResponse } from "next/server"
@@ -14,11 +16,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     orderBy: { createdAt: "asc" },
   })
 
-  // Mark as read
   await db.conversation.update({
     where: { id },
     data: { unreadCount: 0 },
   })
 
-  return NextResponse.json(messages)
+  return NextResponse.json(messages, {
+    headers: { "Cache-Control": "no-store" },
+  })
 }
