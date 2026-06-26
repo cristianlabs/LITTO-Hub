@@ -5,9 +5,16 @@ import { z } from "zod"
 import { hasMinRole } from "@/lib/permissions"
 import type { Role } from "@prisma/client"
 
-const schema = z.object({
-  status: z.enum(["DRAFT", "OPEN", "IN_REVIEW", "APPROVED", "REJECTED", "DONE"]),
-})
+const schema = z.union([
+  z.object({
+    status: z.enum(["DRAFT", "OPEN", "IN_REVIEW", "APPROVED", "REJECTED", "DONE"]),
+    customStatusId: z.null().optional(),
+  }),
+  z.object({
+    customStatusId: z.string().min(1),
+    status: z.enum(["DRAFT", "OPEN", "IN_REVIEW", "APPROVED", "REJECTED", "DONE"]).optional(),
+  }),
+])
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth()
@@ -20,9 +27,23 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const parsed = schema.safeParse(body)
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
 
+  const data: Record<string, unknown> = {}
+
+  if ("customStatusId" in parsed.data && parsed.data.customStatusId) {
+    data.customStatusId = parsed.data.customStatusId
+  } else {
+    data.status = (parsed.data as { status: string }).status
+    data.customStatusId = null
+  }
+
   const updated = await db.requisition.update({
     where: { id },
-    data: { status: parsed.data.status },
+    data,
+    include: {
+      user: { select: { id: true, name: true } },
+      customStatus: true,
+      _count: { select: { comments: true } },
+    },
   })
 
   return NextResponse.json({ ...updated, createdAt: updated.createdAt.toISOString(), updatedAt: updated.updatedAt.toISOString() })

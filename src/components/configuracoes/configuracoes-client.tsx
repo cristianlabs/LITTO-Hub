@@ -8,7 +8,8 @@ import { AlertsConfig } from "./alerts-config"
 import { PermissionsManager } from "./permissions-manager"
 import { RelatorioWhatsappConfigComponent } from "./relatorio-whatsapp-config"
 import { CargosManager } from "./cargos-manager"
-import { Settings, GitMerge, Tag, Truck, Bell, ShieldCheck, MessageCircle, Briefcase } from "lucide-react"
+import { RequisitionStatusManager } from "./requisition-status-manager"
+import { Settings, GitMerge, Tag, Truck, Bell, ShieldCheck, MessageCircle, Briefcase, ListChecks } from "lucide-react"
 import type { Role } from "@prisma/client"
 import type { RelatorioWhatsappConfig } from "@/app/api/configuracoes/relatorio-whatsapp/route"
 
@@ -37,6 +38,7 @@ const tabs = [
   { key: "permissions", label: "Permissões", icon: ShieldCheck },
   { key: "relatorio", label: "Relatório WhatsApp", icon: MessageCircle },
   { key: "cargos", label: "Cargos", icon: Briefcase },
+  { key: "req-status", label: "Status Requisições", icon: ListChecks },
 ]
 
 export function ConfiguracoesClient({ pipelines, categories, suppliers, alertConfig, modulePermissions, isOwner, relatorioConfig, instances }: Props) {
@@ -77,6 +79,7 @@ export function ConfiguracoesClient({ pipelines, categories, suppliers, alertCon
       {tab === "permissions" && <PermissionsManager initialPermissions={modulePermissions} isOwner={isOwner} />}
       {tab === "relatorio" && <RelatorioWhatsappConfigComponent initialConfig={relatorioConfig} instances={instances} />}
       {tab === "cargos" && <CargosManager isOwner={isOwner} />}
+      {tab === "req-status" && <RequisitionStatusManager />}
     </div>
   )
 }

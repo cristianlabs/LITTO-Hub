@@ -10,13 +10,17 @@ export default async function RequisicoesPage() {
   const session = await auth()
   if (!session) redirect("/login")
 
-  const requisitions = await db.requisition.findMany({
-    orderBy: { createdAt: "desc" },
-    include: {
-      user: { select: { id: true, name: true } },
-      _count: { select: { comments: true } },
-    },
-  })
+  const [requisitions, customStatuses] = await Promise.all([
+    db.requisition.findMany({
+      orderBy: { createdAt: "desc" },
+      include: {
+        user: { select: { id: true, name: true } },
+        customStatus: true,
+        _count: { select: { comments: true } },
+      },
+    }),
+    db.customRequisitionStatus.findMany({ orderBy: [{ order: "asc" }, { name: "asc" }] }),
+  ])
 
   const serialized = requisitions.map((r) => ({
     ...r,
@@ -33,6 +37,7 @@ export default async function RequisicoesPage() {
         initialRequisitions={serialized}
         isManager={isManager}
         currentUserId={session.user.id}
+        customStatuses={customStatuses}
       />
     </div>
   )

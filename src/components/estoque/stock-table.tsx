@@ -5,12 +5,13 @@ import { useRouter, useSearchParams, usePathname } from "next/navigation"
 import { ProductFormSheet } from "./product-form-sheet"
 import { MovementDialog } from "./movement-dialog"
 import { ImportDialog } from "./import-dialog"
+import { CategoriesManager } from "./categories-manager"
 import { formatCurrency } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
   AlertTriangle, XCircle, TrendingDown, CheckCircle2,
-  ArrowDown, ArrowUp, Pencil, Trash2, Search, Plus, History, FileSpreadsheet,
+  ArrowDown, ArrowUp, Pencil, Trash2, Search, Plus, History, FileSpreadsheet, Tag,
 } from "lucide-react"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 
@@ -53,6 +54,7 @@ export function StockTable({ products, categories, suppliers, currentFilter, cur
   const [deleteId, setDeleteId] = useState<string | undefined>()
   const [search, setSearch] = useState(currentQ)
   const [importOpen, setImportOpen] = useState(false)
+  const [categoriesOpen, setCategoriesOpen] = useState(false)
 
   function applyFilter(filter: string, q = search) {
     const params = new URLSearchParams()
@@ -99,6 +101,9 @@ export function StockTable({ products, categories, suppliers, currentFilter, cur
           ))}
         </div>
         <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" onClick={() => setCategoriesOpen(true)}>
+            <Tag className="w-4 h-4 mr-1.5" /> Categorias
+          </Button>
           <Button size="sm" variant="outline" onClick={() => setImportOpen(true)}>
             <FileSpreadsheet className="w-4 h-4 mr-1.5" /> Importar planilha
           </Button>
@@ -200,6 +205,12 @@ export function StockTable({ products, categories, suppliers, currentFilter, cur
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <CategoriesManager
+        open={categoriesOpen}
+        onClose={() => setCategoriesOpen(false)}
+        onRefresh={refresh}
+      />
     </div>
   )
 }

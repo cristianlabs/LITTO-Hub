@@ -51,6 +51,12 @@ interface Comment {
   user: { id: string; name: string | null }
 }
 
+interface CustomStatus {
+  id: string
+  name: string
+  color: string
+}
+
 interface Requisition {
   id: string
   title: string
@@ -60,6 +66,8 @@ interface Requisition {
   priority: Priority
   votes: number
   createdAt: string
+  customStatusId?: string | null
+  customStatus?: CustomStatus | null
   user: { id: string; name: string | null }
   _count: { comments: number }
 }
@@ -72,15 +80,38 @@ interface Props {
   initialRequisitions: Requisition[]
   isManager: boolean
   currentUserId: string
+  customStatuses: CustomStatus[]
+}
+
+function StatusBadge({ r }: { r: Pick<Requisition, "status" | "customStatus"> }) {
+  if (r.customStatus) {
+    return (
+      <span
+        className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium text-white"
+        style={{ backgroundColor: r.customStatus.color }}
+      >
+        {r.customStatus.name}
+      </span>
+    )
+  }
+  return (
+    <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[r.status]}`}>
+      {STATUS_LABELS[r.status]}
+    </span>
+  )
 }
 
 // Inline status picker shown on click (dropdown-style popover)
 function StatusPicker({
   status,
+  customStatus,
+  customStatuses,
   onChange,
 }: {
   status: RequisitionStatus
-  onChange: (s: RequisitionStatus) => void
+  customStatus?: CustomStatus | null
+  customStatuses: CustomStatus[]
+  onChange: (payload: { status?: RequisitionStatus; customStatusId?: string | null }) => void
 }) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
@@ -98,33 +129,50 @@ function StatusPicker({
     <div ref={ref} className="relative inline-block">
       <button
         onClick={(e) => { e.stopPropagation(); setOpen((v) => !v) }}
-        className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium transition-opacity hover:opacity-80 ${STATUS_COLORS[status]}`}
+        className="inline-flex items-center gap-1 transition-opacity hover:opacity-80"
       >
-        {STATUS_LABELS[status]}
-        <ChevronDown className="w-3 h-3 opacity-60" />
+        <StatusBadge r={{ status, customStatus }} />
+        <ChevronDown className="w-3 h-3 opacity-60 text-gray-400" />
       </button>
       {open && (
         <div
-          className="absolute top-full left-0 mt-1 z-50 bg-white rounded-lg border border-gray-200 shadow-lg py-1 min-w-[140px]"
+          className="absolute top-full left-0 mt-1 z-50 bg-white rounded-lg border border-gray-200 shadow-lg py-1 min-w-[160px]"
           onClick={(e) => e.stopPropagation()}
         >
+          <p className="px-3 pt-1 pb-0.5 text-[10px] text-gray-400 uppercase tracking-wide">Padrão</p>
           {STATUS_CYCLE.map((s) => (
             <button
               key={s}
-              onClick={() => { onChange(s); setOpen(false) }}
-              className={`w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2 ${s === status ? "font-semibold" : ""}`}
+              onClick={() => { onChange({ status: s, customStatusId: null }); setOpen(false) }}
+              className={`w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2 ${!customStatus && s === status ? "font-semibold" : ""}`}
             >
               <span className={`inline-block w-2 h-2 rounded-full ${STATUS_COLORS[s].split(" ")[0]}`} />
               {STATUS_LABELS[s]}
             </button>
           ))}
+          {customStatuses.length > 0 && (
+            <>
+              <div className="border-t border-gray-100 my-1" />
+              <p className="px-3 pb-0.5 text-[10px] text-gray-400 uppercase tracking-wide">Personalizados</p>
+              {customStatuses.map((cs) => (
+                <button
+                  key={cs.id}
+                  onClick={() => { onChange({ customStatusId: cs.id }); setOpen(false) }}
+                  className={`w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2 ${customStatus?.id === cs.id ? "font-semibold" : ""}`}
+                >
+                  <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: cs.color }} />
+                  {cs.name}
+                </button>
+              ))}
+            </>
+          )}
         </div>
       )}
     </div>
   )
 }
 
-export function RequisicoesClient({ initialRequisitions, isManager, currentUserId }: Props) {
+export function RequisicoesClient({ initialRequisitions, isManager, currentUserId, customStatuses }: Props) {
   const [items, setItems] = useState(initialRequisitions)
   const [tab, setTab] = useState<"ativas" | "rejeitadas" | "concluidas">("ativas")
   const [filterStatus, setFilterStatus] = useState<RequisitionStatus | "ALL">("ALL")
@@ -185,17 +233,17 @@ export function RequisicoesClient({ initialRequisitions, isManager, currentUserI
     }
   }
 
-  async function changeStatus(id: string, status: RequisitionStatus) {
+  async function changeStatus(id: string, payload: { status?: RequisitionStatus; customStatusId?: string | null }) {
     const res = await fetch(`/api/requisicoes/${id}/status`, {
       method: "PATCH", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status }),
+      body: JSON.stringify(payload),
     })
     if (res.ok) {
-      setItems((prev) => prev.map((r) => r.id === id ? { ...r, status } : r))
-      if (detail?.id === id) setDetail((d) => d ? { ...d, status } : d)
-      // Move to the correct tab automatically
-      if (status === "DONE") setTab("concluidas")
-      else if (status === "REJECTED") setTab("rejeitadas")
+      const updated = await res.json()
+      setItems((prev) => prev.map((r) => r.id === id ? { ...r, ...updated } : r))
+      if (detail?.id === id) setDetail((d) => d ? { ...d, ...updated } : d)
+      if (payload.status === "DONE") setTab("concluidas")
+      else if (payload.status === "REJECTED") setTab("rejeitadas")
     }
   }
 
@@ -354,12 +402,12 @@ export function RequisicoesClient({ initialRequisitions, isManager, currentUserI
                       {isManager ? (
                         <StatusPicker
                           status={r.status}
-                          onChange={(s) => changeStatus(r.id, s)}
+                          customStatus={r.customStatus}
+                          customStatuses={customStatuses}
+                          onChange={(payload) => changeStatus(r.id, payload)}
                         />
                       ) : (
-                        <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[r.status]}`}>
-                          {STATUS_LABELS[r.status]}
-                        </span>
+                        <StatusBadge r={r} />
                       )}
                     </td>
                     <td className="px-4 py-3 hidden md:table-cell">
@@ -442,12 +490,12 @@ export function RequisicoesClient({ initialRequisitions, isManager, currentUserI
                       {isManager ? (
                         <StatusPicker
                           status={detail.status}
-                          onChange={(s) => changeStatus(detail.id, s)}
+                          customStatus={detail.customStatus}
+                          customStatuses={customStatuses}
+                          onChange={(payload) => changeStatus(detail.id, payload)}
                         />
                       ) : (
-                        <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[detail.status]}`}>
-                          {STATUS_LABELS[detail.status]}
-                        </span>
+                        <StatusBadge r={detail} />
                       )}
                       <span className={`text-xs ${PRIORITY_COLORS[detail.priority]}`}>
                         {detail.priority === "CRITICAL" && <AlertTriangle className="w-3 h-3 inline mr-0.5" />}
